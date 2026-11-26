@@ -1,0 +1,8 @@
+test_golden (test_rules.RulesTest.test_golden) ... ok
+test_layout (test_rules.RulesTest.test_layout) ... ok
+test_whole_disk_and_once (test_rules.RulesTest.test_whole_disk_and_once) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.004s
+
+OK
