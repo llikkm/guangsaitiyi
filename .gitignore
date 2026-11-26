@@ -1,0 +1,11 @@
+# Original local delivery archive and duplicate monitor
+/AMR_NEW_CodingDay4(1).zip
+/pc_monitor(1).py
+
+# Reproducible CubeIDE outputs and local capture files
+/AMR_NEW_CodingDay4/Debug/
+/AMR_NEW_CodingDay4/Release/
+/AMR_NEW_CodingDay4/BuildCheck/
+__pycache__/
+amr-*.csv
+/guangsaitiyi-main.bundle
