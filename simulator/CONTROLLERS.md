@@ -1,4 +1,4 @@
-# V2.0 控制器接口
+# V2.0 / V2.1 控制器接口
 
 V2.1 继续使用本接口。加载 V2.1 方案时，轮速环输出的 PWM 经电机电流、轮轴扭矩和轮胎接触传至车体；零 PWM 按该车的 brake/coast 参数处理。评估日志增加轮系状态，控制器仍从模拟传感器读取观测。[V2.1 动力学说明](V2.1手册.md)
 
@@ -36,6 +36,33 @@ class Controller:
 
 V2.0 使用简化的 PWM 执行器。占空比映射到空载目标轮速，轮速受加速度限制；轮地作用力再推动刚体。轮速环含前馈、PID 及积分限幅处理。参数沿用 [config.toml](config.toml) 的来源分区，V2 新增的增益和频率在 [v2.toml](v2.toml) 的 assumed 中。实车电机参数尚待标定。
 
+## V2.1 雷达定位接口
+
+在 `plan(robot, dt)` 或 `update(robot, dt)` 中读取 `robot.wall_fix`。每辆车在新扫描到达时更新一次结果。默认控制器以 100 Hz 运行，雷达以 12 Hz 采样。若要累计统计或更新滤波器，按 `fix.time` 去重，并在控制器 reset 时清除上次处理的时间。
+
+| 字段 | 约定 |
+| --- | --- |
+| `time` | 扫描时刻，单位 s，与同一观测的 `robot.lidar_time` 一致 |
+| `status` | `ok` 表示本帧有效。其余值为 `too_few_returns`、`missing_wall_direction`、`short_wall_segments`、`poor_match` 或 `no_convergence` |
+| `pose` | 有效时为 (x mm, y mm, 航向 rad)，对应车体中心，失效时为 None |
+| `wall_distances` | 有效时为 (西, 东, 南, 北) 四面墙到车体中心的垂直距离，单位 mm，失效时为 None |
+| `support` | 参与墙面匹配的点数占抽样有效点数的比例，范围 0～1 |
+| `rms_mm` | 匹配点到墙线的均方根残差，单位 mm，无法计算时为 None |
+
+下面的例子可放在控制器的 update 中。雷达有效时记录扫描时刻的位姿，缺少有效解时使用当前里程计位姿，并清空本帧墙距。
+
+~~~python
+fix = robot.wall_fix
+if fix is not None and fix.status == "ok":
+    self.pose = fix.pose
+    self.wall_distances = fix.wall_distances
+else:
+    self.pose = robot.estimated_pose
+    self.wall_distances = None
+~~~
+
+实车适配时，把同一时刻的里程计预测与整帧扫描传给 `RectangleLocator.locate`。仿真扫描为 (车体系角度 rad, 距离 mm)，PAVO 原始包角度和以米解码的距离先经 `pavo_scan` 转换。雷达偏离车体中心时填写安装偏移。[安装坐标与实车示例](localization/README.md)
+
 ## 仿真时钟
 
 默认物理和电机各 200 Hz，编码器、IMU、轮速 PID 和控制器 update 各 100 Hz，导航 plan 为 20 Hz，雷达为 12 Hz，窗口上限 60 FPS。可分别配置 `rate`、`motor_hz`、`encoder_hz`、`imu_hz`、`pid_hz`、`control_hz`、`navigation_hz`、`scan_rate` 和 `display.fps`。物理频率用正整数，各任务频率可为小数，上限为物理频率。
@@ -60,5 +87,3 @@ obstacles = [[900, 400, 100, 160, 180]]
 `--record` 输出格式 3 的 JSONL。首行保存软件及 Pymunk 版本、有效配置、实验种子、场景和两份控制器的 SHA-256。每个物理步保存步号、仿真秒、两队的原始命令模式和数值，以及实际 PWM。遥测包含车辆真值、估计和棋位，末行记录结束步号。
 
 `--replay` 读取记录的命令，在同一版本核心中重新计算轮速环并逐步核对 PWM。回放可脱离原控制器文件运行。离线位置 RMSE 可用 `experiment.py` 计算。硬件适配时须实现同样的单位和时间戳约定；本版交付仿真端接口。
-
-每次新扫描更新 robot.wall_fix，可读取场地位姿、四面墙距和有效状态。[雷达定位接口与示例](localization/README.md)
