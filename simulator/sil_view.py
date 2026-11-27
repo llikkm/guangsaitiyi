@@ -99,13 +99,22 @@ def watch(sim,advance,speed):
                     f"Encoders   {obs.encoder_counts}",f"Gyro   {obs.gyro_rad_s:.3f} rad/s",
                     f"Score   {w.match.scores}",f"{speed:g}x    {fps} FPS",
                     "Arrows: drive   Click: target"]
+            fix = obs.wall_fix
+            if fix.pose is None:
+                rows.append(f"Lidar: {fix.status}")
+            else:
+                lx, ly, yaw = fix.pose
+                west, east, south, north = fix.wall_distances
+                rows.extend([f"Lidar xy mm   {lx:.0f}, {ly:.0f}", f"Lidar yaw   {yaw:.3f} rad",
+                             f"Wall W/E mm   {west:.0f} / {east:.0f}",
+                             f"Wall S/N mm   {south:.0f} / {north:.0f}"])
             car = w.cars[team]
             if hasattr(car,"wheels"):
                 rows += [f"Mass {car.body.mass:.3f} kg   Body {car.body.velocity.length:.1f} mm/s"]
                 for label,attr in (("Current A","current"),("Wheel rad/s","omega"),("Slip m/s","slip"),("Traction N","longitudinal_n")):
                     rows.append(label+"   "+" / ".join(f"{getattr(wheel,attr):.2f}" for wheel in car.wheels))
             for i,row in enumerate(rows):
-                screen.blit(font.render(row,True,(223,232,235)),(880,30+27*i))
+                screen.blit(font.render(row,True,(223,232,235)),(880,22+22*i))
             for rect,name,_ in controls:
                 pg.draw.rect(screen,(57,82,96),rect,border_radius=4)
                 screen.blit(font.render(name,True,(223,232,235)),(rect.x+5,rect.y+6))

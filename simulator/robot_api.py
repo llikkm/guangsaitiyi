@@ -1,6 +1,7 @@
 """Controller-facing values. This module has no simulator or hardware imports."""
 from dataclasses import dataclass
 import math
+from wall_localization import WallFix
 
 
 @dataclass(frozen=True, slots=True)
@@ -33,6 +34,7 @@ class Observation:
     imu_time: float
     encoder_counts: tuple
     encoder_time: float
+    wall_fix: WallFix | None = None  # WallFix for the most recent scan
 
     def read_lidar(self):
         return self.lidar

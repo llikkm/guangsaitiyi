@@ -1,4 +1,5 @@
 """JSON Lines experiment format and dependency-free offline analysis."""
+from dataclasses import asdict
 import argparse
 import json
 import math
@@ -13,6 +14,8 @@ def sample(w, commands):
                          wheel_mm_s=car.speed.copy(), gyro_rad_s=w.gyros[i],
                          command=commands[i], scan=w.scans[i],
                          scan_tick=w.scan_tick, scan_pose=w.scan_poses[i]))
+        if hasattr(w, "wall_fixes"):
+            cars[-1]["wall_fix"] = asdict(w.wall_fixes[i])
         if hasattr(car,"wheels"):
             cars[-1]["latched_pwm"] = car.duty
             cars[-1]["wheels"] = [vars(wheel).copy() for wheel in car.wheels]

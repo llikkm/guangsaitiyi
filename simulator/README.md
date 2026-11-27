@@ -102,3 +102,5 @@ py -3.12 -m unittest discover -s . -v
 ```
 
 分析结果包含两车平面位置误差的均方根，单位为 mm。窗口测试默认打开窗口并自动退出；无桌面的测试机可显式设置 `SDL_VIDEODRIVER=dummy`。本机原生窗口和物理测试的执行结果见 [测试记录](TESTING.md)。
+
+V2.1 驾驶窗口显示雷达估计的车中心和四面墙距。接口、实车接入与验证见[雷达定位 README](localization/README.md)。

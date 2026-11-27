@@ -10,6 +10,7 @@ import tomllib
 import pymunk as pm
 from control import clamp
 from physics import World
+from wall_localization import RectangleLocator
 from robot_api import MotorCommand, Observation, WheelSpeed
 from rules import config
 from units import counts_to_travel, turns_to_counts
@@ -103,6 +104,7 @@ class SpeedLoop:
 class Plant(World):
     def __init__(self, c, seed, scene, vehicles=None):
         self.vehicles = vehicles
+        self.locator = RectangleLocator(c["width"], c["height"])
         self.scene = scene
         for name, size in (("poses",3),("pieces",4),("obstacles",5)):
             for row in scene.get(name, []):
@@ -206,11 +208,16 @@ class Plant(World):
         if self.schedule.due("scan_rate", tick):
             self.refresh_scans()
 
+    def refresh_scans(self):
+        super().refresh_scans()
+        self.wall_fixes = [self.locator.locate(beams, self.scan_tick/self.c["rate"], odom.pose)
+                           for beams, odom in zip(self.scans, self.estimates)]
+
     def observation(self,i):
         rate = self.c["rate"]
         return Observation(self.elapsed/rate, tuple(self.estimates[i].pose),
                            tuple(self.scans[i]), self.scan_tick/rate, self.gyros[i],
-                           self.imu_tick/rate, self.counts[i], self.encoder_tick/rate)
+                           self.imu_tick/rate, self.counts[i], self.encoder_tick/rate, self.wall_fixes[i])
 
 
 def load_controller(team, index):

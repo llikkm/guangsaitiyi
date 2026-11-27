@@ -74,3 +74,5 @@ py -3.12 -m unittest discover -s simulator -v
 | 离线分析 | 写入并读取 JSONL，以已知 3 mm、4 mm 双轴偏差验证两车的 5 mm 平面 RMSE |
 
 Pygame 导入时报告第三方 pkg_resources 弃用提示。上述数字来自软件仿真，车辆参数尚待实车标定。
+
+矩形围挡定位新增 3 项测试。双车 4 秒检查 96 个扫描解，另覆盖初始偏差、安装偏移、遮挡和单墙失效。[指标与复现方法](localization/README.md)
