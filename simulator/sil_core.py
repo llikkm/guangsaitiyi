@@ -13,9 +13,11 @@ from physics import World
 from robot_api import MotorCommand, Observation, WheelSpeed
 from rules import config
 from units import counts_to_travel, turns_to_counts
+from dynamics import DynamicCar, vehicle_config
 
 
 REFERENCE = Path(__file__).with_name("v2.toml")
+DYNAMIC_REFERENCE = REFERENCE.with_name("v21.toml")
 TASKS = ("motor_hz", "pid_hz", "encoder_hz", "imu_hz", "control_hz",
          "navigation_hz", "scan_rate")
 
@@ -33,12 +35,33 @@ def settings(path=REFERENCE):
             c[key] = default
     teams = []
     for name in ("team_a","team_b"):
-        team = dict(data.get(name, reference[name]))
-        base = path.parent if name in data else REFERENCE.parent
+        team = reference[name] | data.get(name, {})
+        base = path.parent if "controller" in data.get(name,{}) else REFERENCE.parent
         team["controller"] = str((base/team["controller"]).resolve())
         teams.append(team)
-    return dict(config=c, teams=teams, scene=data.get("scene", {}),
-                fps=data.get("display", {}).get("fps", 60))
+    options = dict(config=c, teams=teams, scene=data.get("scene", {}),
+                   fps=data.get("display", {}).get("fps", 60))
+    if "dynamics" in data:
+        with DYNAMIC_REFERENCE.open("rb") as stream:
+            defaults = tomllib.load(stream)["dynamics"]
+        dyn = data["dynamics"]
+        options["dynamics"] = {k: defaults[k] | dyn.get(k,{}) for k in ("assumed","motor_assumed")}
+        sources = dict(data.get("sources",{}))
+        for section,label in (("theoretical","理论"),("nominal","厂商标称"),("measured","实测")):
+            for key in data.get(section,{}):
+                sources["config."+key] = label
+                for i,team in enumerate(teams):
+                    if key not in team.get("vehicle",{}):
+                        sources[f"teams.{i}.vehicle.{key}"] = label
+            for group,prefix in (("assumed",""),("motor_assumed","motor_")):
+                params = dyn.get(prefix+section,{})
+                options["dynamics"][group].update(params)
+                for i,team in enumerate(teams):
+                    for part in (("left","right") if prefix else ("vehicle",)):
+                        for key in params:
+                            if key not in team.get(part,{}): sources[f"teams.{i}.{part}.{key}"] = label
+        options["sources"] = sources | data.get("sources",{})
+    return options
 
 
 class Schedule:
@@ -78,7 +101,8 @@ class SpeedLoop:
 
 
 class Plant(World):
-    def __init__(self, c, seed, scene):
+    def __init__(self, c, seed, scene, vehicles=None):
+        self.vehicles = vehicles
         self.scene = scene
         for name, size in (("poses",3),("pieces",4),("obstacles",5)):
             for row in scene.get(name, []):
@@ -88,6 +112,14 @@ class Plant(World):
             raise ValueError("scene.poses requires two vehicle poses")
         self.schedule = Schedule(c)
         super().__init__(c, seed)
+        if vehicles:
+            self.match.c = c | dict(mass=self.cars[0].body.mass,mass_b=self.cars[1].body.mass)
+
+    def make_car(self,team):
+        if self.vehicles:
+            c,motors = self.vehicles[team]
+            return DynamicCar(self.space,c,team,motors)
+        return super().make_car(team)
 
     def initial_pieces(self):
         if "pieces" in self.scene and self.match.round == 0:
@@ -148,6 +180,10 @@ class Plant(World):
             motor_dt = (self.elapsed-self.motor_tick)/self.c["rate"] or 1/self.c["motor_hz"]
             self.motor_tick = self.elapsed
         for car, pwm in zip(self.cars,commands):
+            if self.vehicles:
+                if due: car.duty = tuple(pwm)
+                car.integrate(dt)
+                continue
             if due:
                 car.update_wheels([value*self.c["speed"] for value in pwm],motor_dt)
             car.apply_traction(dt)
@@ -158,8 +194,8 @@ class Plant(World):
             period = (tick-self.encoder_tick)*dt
             self.encoder_tick = tick
             for i,car in enumerate(self.cars):
-                counts = tuple(turns_to_counts(n,c["counts"]) for n in car.rotations)
-                self.measured_speed[i] = tuple(counts_to_travel(n-old,c["wheel"],c["counts"])/period
+                counts = tuple(turns_to_counts(n,car.c["counts"]) for n in car.rotations)
+                self.measured_speed[i] = tuple(counts_to_travel(n-old,car.c["wheel"],car.c["counts"])/period
                                                for n,old in zip(counts,self.counts[i]))
                 self.counts[i] = counts
         if self.schedule.due("imu_hz", tick):
@@ -196,7 +232,12 @@ def pack(cmd):
 class Simulation:
     def __init__(self, options, seed=42, replay=False):
         self.options = copy.deepcopy(options)
-        self.world = Plant(self.options["config"],seed,self.options["scene"])
+        vehicles = None
+        if "dynamics" in options:
+            vehicles = [vehicle_config(options["config"],team,options["dynamics"],i)
+                        for i,team in enumerate(options["teams"])]
+        self.world = Plant(self.options["config"],seed,self.options["scene"],vehicles)
+        self.manual = {}
         self.controllers = []
         self.hashes = []
         if not replay:
@@ -233,7 +274,8 @@ class Simulation:
                 if task == "navigation_hz" and hasattr(controller,"plan"):
                     controller.plan(w.observation(i),dt)
                 if task == "control_hz":
-                    self.commands[i] = controller.update(w.observation(i),dt)
+                    self.commands[i] = (self.manual[i] if i in self.manual else
+                                        controller.update(w.observation(i),dt))
             if task == "pid_hz":
                 for i,cmd in enumerate(self.commands):
                     if isinstance(cmd,WheelSpeed):

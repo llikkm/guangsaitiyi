@@ -13,6 +13,11 @@ def sample(w, commands):
                          wheel_mm_s=car.speed.copy(), gyro_rad_s=w.gyros[i],
                          command=commands[i], scan=w.scans[i],
                          scan_tick=w.scan_tick, scan_pose=w.scan_poses[i]))
+        if hasattr(car,"wheels"):
+            cars[-1]["latched_pwm"] = car.duty
+            cars[-1]["wheels"] = [vars(wheel).copy() for wheel in car.wheels]
+            cars[-1]["body_velocity_mm_s"] = list(car.body.velocity)
+            cars[-1]["angular_velocity_rad_s"] = car.body.angular_velocity
     return dict(tick=w.elapsed, round=w.match.round, clock=w.match.tick,
                 score=w.match.scores.copy(), result=w.match.result, cars=cars,
                 pieces=[[t,k,*b.position] for t,k,b in w.pieces])

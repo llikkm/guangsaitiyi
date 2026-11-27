@@ -46,6 +46,6 @@ def field_view(screen,c,small):
                 pg.draw.line(screen,colors[i],px(*bot.body.local_to_world(rail.a)),
                              px(*bot.body.local_to_world(rail.b)),max(2,round(2*rail.radius*scale)))
             pg.draw.line(screen,(22,34,35),px(*bot.body.position),
-                         px(*bot.body.local_to_world((c["length"]/2,0))),3)
+                         px(*bot.body.local_to_world((bot.c["length"]/2,0))),3)
         if target: pg.draw.circle(screen,(254,213,103),px(*target),6,2)
     return px, draw

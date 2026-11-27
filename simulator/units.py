@@ -16,3 +16,8 @@ def counts_to_travel(counts, diameter_mm, counts_per_turn):
 
 degrees = math.degrees
 radians = math.radians
+
+# Pymunk uses kg, mm, s. Drivetrain equations use SI.
+MM_PER_M = 1000.0
+ENGINE_FORCE_PER_N = MM_PER_M
+ENGINE_MOMENT_PER_SI = MM_PER_M ** 2

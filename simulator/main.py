@@ -40,10 +40,10 @@ def run(c, seed, replay=None, fps=60):
         screen.blit(font.render(str(text),True,color),(x,y))
 
     controls = [
-        ("Play/Pause", pg.K_p), ("Brake", pg.K_SPACE), ("Team", pg.K_TAB),
-        ("Speed", pg.K_t), ("FPS", pg.K_f), ("Bumper", pg.K_b),
-        ("Reset", pg.K_r), ("Save", pg.K_s), ("Replay", pg.K_v),
-        ("Unjam", pg.K_j), ("-5", pg.K_MINUS)]
+        ("Play [P]", pg.K_p), ("Brake [Spc]", pg.K_SPACE), ("Team [Tab]", pg.K_TAB),
+        ("Speed [T]", pg.K_t), ("FPS [F]", pg.K_f), ("Bumper [B]", pg.K_b),
+        ("Reset [R]", pg.K_r), ("Save [S]", pg.K_s), ("Replay [V]", pg.K_v),
+        ("Unjam [J]", pg.K_j), ("-5 [-]", pg.K_MINUS)]
     buttons = [(pg.Rect(882+(i%3)*97,435+(i//3)*34,93,30), name, key)
                for i,(name,key) in enumerate(controls)]
     physical = {getattr(pg, "KSCAN_"+letter.upper()): ord(letter) for letter in "pjrsbtfv"}

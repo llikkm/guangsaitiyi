@@ -1,0 +1,33 @@
+# All initial physical values below are assumptions pending measurement.
+[dynamics]
+version = "2.1"
+[dynamics.assumed]
+battery_v = 7.4
+cg_x = 0.0
+cg_y = 0.0
+inertia_si = 0.0
+bumper_mass = 0.0
+tire_mu = 0.72
+long_stiffness = 70.0
+side_stiffness = 45.0
+rolling_mu = 0.012
+zero_mode = "brake"
+[dynamics.motor_assumed]
+spec_mode = "constants"
+# Alternative illustrative rated point; used only in rated mode.
+rated_v = 7.4
+rated_a = 0.75
+rated_rpm = 2626.0
+rated_nm = 0.012
+resistance = 4.0
+ke = 0.016
+kt = 0.016
+gear = 20.0
+efficiency = 0.82
+current_limit = 1.5
+stall_nm = 0.030
+deadband = 0.05
+wheel_inertia = 0.00035
+
+# Optional examples: [team_a.vehicle], [team_a.left], [team_b.right].
+# Vehicle dimensions and offsets use mm; mass uses kg; motor data uses SI.

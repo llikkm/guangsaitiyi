@@ -42,19 +42,22 @@ class World:
     def initial_pieces(self):
         return layout(self.c,self.seed+self.match.round)
 
+    def make_car(self,team):
+        return Car(self.space,self.c,team)
+
     def reset_cars(self):
         for car in self.cars:
             self.space.remove(*car.rails, car.shape, car.body)
             for rail in car.rails:
                 del self.heights[rail]
             del self.heights[car.shape]
-        self.cars = [Car(self.space, self.c, team) for team in range(2)]
+        self.cars = [self.make_car(team) for team in range(2)]
         self.estimates = []
         for car in self.cars:
-            self.heights[car.shape] = self.c["car_height"]
+            self.heights[car.shape] = car.c["car_height"]
             for rail in car.rails:
-                self.heights[rail] = self.c["bumper_height"]
-            self.estimates.append(Odometry((*car.body.position, car.body.angle), self.c))
+                self.heights[rail] = car.c["bumper_height"]
+            self.estimates.append(Odometry((*car.body.position, car.body.angle), car.c))
         self.gyros = [0., 0.]
         self.refresh_scans()
 

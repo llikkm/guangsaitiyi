@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pymunk
 from experiment import sample
-from sil_core import REFERENCE, Simulation, settings
+from sil_core import DYNAMIC_REFERENCE, Simulation, settings
 
 
 def write_line(stream, value):
@@ -15,7 +15,7 @@ def write_line(stream, value):
 
 
 def header(sim):
-    return dict(format=3,software="2.0",pymunk=pymunk.version,seed=sim.world.seed,
+    return dict(format=3,software="2.1" if sim.world.vehicles else "2.0",pymunk=pymunk.version,seed=sim.world.seed,
                 options=sim.options,controller_sha256=sim.hashes)
 
 
@@ -71,7 +71,9 @@ def execute(sim, count, stream=None, recorded=None, gui=False, speed=1, on_step=
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config",type=Path,default=REFERENCE)
+    parser.add_argument("--config",type=Path,default=DYNAMIC_REFERENCE)
+    parser.add_argument("--profile",type=Path,help="JSON profile exported by the dynamics workbench")
+    parser.add_argument("--manual",action="store_true",help="Start GUI with team A in manual mode")
     parser.add_argument("--seed",type=int,default=42)
     parser.add_argument("--seconds",type=float,default=4)
     parser.add_argument("--gui",action="store_true")
@@ -88,17 +90,21 @@ def main():
                 parser.error("Choose either --record or --replay")
             source = stack.enter_context(args.replay.open(encoding="utf8"))
             meta = json.loads(source.readline())
-            if (meta.get("format"),meta.get("software"),meta.get("pymunk")) != (3,"2.0",pymunk.version):
-                parser.error("Expected a compatible V2.0 experiment")
+            if meta.get("format") != 3 or meta.get("software") not in ("2.0","2.1") or meta.get("pymunk") != pymunk.version:
+                parser.error("Expected a compatible V2 experiment")
             sim = Simulation(meta["options"],meta["seed"],replay=True)
             recorded = inputs(source)
         else:
-            sim = Simulation(settings(args.config),args.seed)
+            options = json.loads(args.profile.read_text(encoding="utf8")) if args.profile else settings(args.config)
+            sim = Simulation(options,args.seed)
+            if args.manual:
+                from robot_api import MotorCommand
+                sim.manual[0] = MotorCommand(0,0)
         out = None
         if args.record:
             args.record.parent.mkdir(parents=True,exist_ok=True)
             out = stack.enter_context(args.record.open("x",encoding="utf8"))
-        result = execute(sim,round(args.seconds*sim.world.c["rate"]),out,recorded,args.gui,args.speed)
+        result = execute(sim,round(args.seconds*sim.world.c["rate"]),out,recorded,args.gui or args.manual,args.speed)
         print(json.dumps(result))
 
 

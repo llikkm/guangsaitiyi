@@ -1,5 +1,7 @@
 # V2.0 控制器接口
 
+V2.1 继续使用本接口。加载 V2.1 方案时，轮速环输出的 PWM 经电机电流、轮轴扭矩和轮胎接触传至车体；零 PWM 按该车的 brake/coast 参数处理。评估日志增加轮系状态，控制器仍从模拟传感器读取观测。[V2.1 动力学说明](V2.1手册.md)
+
 每队提供一个 Python 文件，导出无参 `Controller` 类。相对路径从实验 TOML 所在目录解析。两队分别创建实例。可以复制 [motion_check.py](controllers/motion_check.py) 开始开发。
 
 ```python
