@@ -43,7 +43,7 @@ V2.0 使用简化的 PWM 执行器。占空比映射到空载目标轮速，轮�
 | 字段 | 约定 |
 | --- | --- |
 | `time` | 扫描时刻，单位 s，与同一观测的 `robot.lidar_time` 一致 |
-| `status` | `ok` 表示本帧有效。其余值为 `too_few_returns`、`missing_wall_direction`、`short_wall_segments`、`poor_match` 或 `no_convergence` |
+| `status` | `ok` 表示本帧通过局部检查。其余值为 `too_few_returns`、`missing_wall_direction`、`short_wall_segments`、`poor_match`、`ambiguous_heading` 或 `no_convergence` |
 | `pose` | 有效时为 (x mm, y mm, 航向 rad)，对应车体中心，失效时为 None |
 | `wall_distances` | 有效时为 (西, 东, 南, 北) 四面墙到车体中心的垂直距离，单位 mm，失效时为 None |
 | `support` | 参与墙面匹配的点数占抽样有效点数的比例，范围 0～1 |

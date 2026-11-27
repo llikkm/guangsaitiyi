@@ -43,6 +43,7 @@ def settings(path=REFERENCE):
     options = dict(config=c, teams=teams, scene=data.get("scene", {}),
                    fps=data.get("display", {}).get("fps", 60))
     if "dynamics" in data:
+        c.setdefault("reviewed_dynamics",True)
         with DYNAMIC_REFERENCE.open("rb") as stream:
             defaults = tomllib.load(stream)["dynamics"]
         dyn = data["dynamics"]
@@ -88,13 +89,13 @@ class SpeedLoop:
         self.integral = 0.
         self.previous = None
 
-    def update(self, target, measured, dt, c):
+    def update(self, target, measured, dt, c, full_speed=None):
         target = clamp(target, c["speed"])
         error = target - measured
         change = 0 if self.previous is None else (error-self.previous)/dt
         self.previous = error
         integral = self.integral + error*dt
-        raw = (target/c["speed"] + c["speed_kp"]*error +
+        raw = (target/(full_speed or c["speed"]) + c["speed_kp"]*error +
                c["speed_ki"]*integral + c["speed_kd"]*change)
         if abs(raw) <= 1 or raw*error < 0:
             self.integral = integral
@@ -241,7 +242,9 @@ class Simulation:
         self.options = copy.deepcopy(options)
         vehicles = None
         if "dynamics" in options:
-            vehicles = [vehicle_config(options["config"],team,options["dynamics"],i)
+            if not replay:
+                self.options["config"].setdefault("reviewed_dynamics",True)
+            vehicles = [vehicle_config(self.options["config"],team,options["dynamics"],i)
                         for i,team in enumerate(options["teams"])]
         self.world = Plant(self.options["config"],seed,self.options["scene"],vehicles)
         self.manual = {}
@@ -286,8 +289,10 @@ class Simulation:
             if task == "pid_hz":
                 for i,cmd in enumerate(self.commands):
                     if isinstance(cmd,WheelSpeed):
-                        self.pwm[i] = tuple(loop.update(target,speed,dt,c) for loop,target,speed in
-                                            zip(self.loops[i],(cmd.left,cmd.right),w.measured_speed[i]))
+                        car = w.cars[i]
+                        scales = car.free_speeds if w.vehicles and c.get("reviewed_dynamics") else (None,None)
+                        self.pwm[i] = tuple(loop.update(target,speed,dt,car.c,scale) for loop,target,speed,scale in
+                                            zip(self.loops[i],(cmd.left,cmd.right),w.measured_speed[i],scales))
         for i,cmd in enumerate(self.commands):
             if isinstance(cmd,MotorCommand):
                 self.pwm[i] = (cmd.left_pwm,cmd.right_pwm)

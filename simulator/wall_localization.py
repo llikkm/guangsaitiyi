@@ -85,6 +85,13 @@ class RectangleLocator:
             if iteration >= 4 and max(abs(dx),abs(dy)) < .1 and abs(turn)<.0001:
                 if support < .55 or rms > 35 or not (0<=x<=self.width and 0<=y<=self.height):
                     return reject("poor_match")
+                if math.dist((x,y),prior[:2]) > 300 or abs(math.remainder(h-prior[2],math.tau)) > .35:
+                    return reject("poor_match")
+                # Both headings fit the same four walls. Near centre even the
+                # independently supplied position prior cannot select a branch.
+                mirror = (self.width-x,self.height-y)
+                if math.dist(mirror,prior[:2]) <= 300:
+                    return reject("ambiguous_heading")
                 return WallFix(time,(x,y,math.remainder(h,math.tau)),
                                (x,self.width-x,y,self.height-y),support,rms,"ok")
             x,y,h = x+dx,y+dy,h+turn

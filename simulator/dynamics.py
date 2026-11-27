@@ -83,6 +83,8 @@ class DynamicCar(Car):
         self.body.position = origin
         space.reindex_shapes_for_body(self.body)
         self.motors = motors
+        self.free_speeds = [c["battery_v"]*c["wheel"]/(2*m["ke"]*m["gear"]) for m in motors]
+        self.previous_contact_speed = [None,None]
         self.wheels = [Wheel(),Wheel()]
         self.duty = (0.,0.)
 
@@ -118,6 +120,13 @@ class DynamicCar(Car):
             # Implicit wheel reaction against measured contact speed. The second
             # bound limits the single-step impulse for an unusually light chassis.
             fx = k*(free*radius-vx)/(1+k*dt*max(radius**2/j,1/supported))
+            if c.get("reviewed_dynamics"):
+                # Estimate acceleration from contacts other than this tire. At a wall,
+                # its reaction cancels the previous traction even at zero body speed.
+                previous = self.previous_contact_speed[i]
+                other_dv = 0 if previous is None else vx-previous-dt*wheel.longitudinal_n/supported
+                fx = k*(free*radius-vx-other_dv)/(1+k*dt*(radius**2/j+1/supported))
+                self.previous_contact_speed[i] = vx
             ky = c["side_stiffness"]
             fy = -ky*vy/(1+ky*dt/supported)
             magnitude = math.hypot(fx,fy)

@@ -6,6 +6,10 @@ from control import navigate, clamp
 from robot_api import MotorCommand, WheelSpeed
 
 
+def manual_pwm(forward,turn,steering):
+    return MotorCommand(clamp(forward-turn*steering,1),clamp(forward+turn*steering,1))
+
+
 def watch(sim,advance,speed):
     w = sim.world
     fps = sim.options["fps"]
@@ -25,6 +29,8 @@ def watch(sim,advance,speed):
         running = True
         target = None
         brake_latched = False
+        steering = 1.
+        slider = pg.Rect(883,640,278,16)
         buttons = [("Pause [Space]",pg.K_SPACE),("Team [Tab]",pg.K_TAB),
                    ("Manual [F2]",pg.K_F2),("Stop [End]",pg.K_END),
                    ("Slower [F3]",pg.K_F3),("Faster [F4]",pg.K_F4),
@@ -35,6 +41,10 @@ def watch(sim,advance,speed):
             ms = timer.tick(fps)
             for event in pg.event.get():
                 if event.type == pg.QUIT: return
+                if ((event.type == pg.MOUSEBUTTONDOWN and event.button == 1) or
+                    (event.type == pg.MOUSEMOTION and event.buttons[0])) and slider.inflate(0,12).collidepoint(event.pos):
+                    steering = max(0.,min(1.,(event.pos[0]-slider.left)/(slider.width-1)))
+                    continue
                 if event.type == pg.MOUSEBUTTONDOWN and event.button == 1:
                     key = next((key for rect,_,key in controls if rect.collidepoint(event.pos)),None)
                     if key is not None:
@@ -46,6 +56,8 @@ def watch(sim,advance,speed):
                             target = (x,y)
                 if event.type == pg.KEYDOWN:
                     if event.key == pg.K_ESCAPE: return
+                    if event.key == pg.K_LEFTBRACKET: steering = max(0.,steering-.05)
+                    if event.key == pg.K_RIGHTBRACKET: steering = min(1.,steering+.05)
                     if event.key == pg.K_TAB:
                         if team in sim.manual: sim.manual[team] = MotorCommand(0,0)
                         team = 1-team
@@ -81,7 +93,7 @@ def watch(sim,advance,speed):
                         sim.manual[team] = WheelSpeed(*cmd)
                         if arrived: target = None
                     else:
-                        sim.manual[team] = MotorCommand(clamp(f-t,1),clamp(f+t,1))
+                        sim.manual[team] = manual_pwm(f,t,steering)
                 if not advance():
                     running = False
                     break
@@ -100,7 +112,9 @@ def watch(sim,advance,speed):
                     f"Score   {w.match.scores}",f"{speed:g}x    {fps} FPS",
                     "Arrows: drive   Click: target"]
             fix = obs.wall_fix
-            if fix.pose is None:
+            if fix is None:
+                rows.append("Lidar: no sample")
+            elif fix.pose is None:
                 rows.append(f"Lidar: {fix.status}")
             else:
                 lx, ly, yaw = fix.pose
@@ -118,6 +132,9 @@ def watch(sim,advance,speed):
             for rect,name,_ in controls:
                 pg.draw.rect(screen,(57,82,96),rect,border_radius=4)
                 screen.blit(font.render(name,True,(223,232,235)),(rect.x+5,rect.y+6))
+            screen.blit(font.render(f"Steering {steering:.1%}   [ / ]",True,(223,232,235)),(882,616))
+            pg.draw.rect(screen,(57,82,96),slider)
+            pg.draw.circle(screen,(110,220,180),(slider.left+round(steering*(slider.width-1)),slider.centery),7)
             pg.display.flip()
     finally:
         pg.quit()

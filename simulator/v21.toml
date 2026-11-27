@@ -1,4 +1,6 @@
 # All initial physical values below are assumptions pending measurement.
+[assumed]
+reviewed_dynamics = true
 [dynamics]
 version = "2.1"
 [dynamics.assumed]

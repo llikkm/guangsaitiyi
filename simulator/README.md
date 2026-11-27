@@ -29,7 +29,7 @@ py -3.12 -m pip install --no-index --find-links wheels -r requirements.txt
 py -3.12 main.py --seed 42
 ```
 
-`wheels/` 是本机已下载的安装包目录。新克隆在联网环境可直接运行 `py -3.12 -m pip install -r requirements.txt`。用 `--config 文件路径` 加载另一份完整 TOML 配置。
+`wheels/` 是本机已下载的安装包目录。该目录由 Git 忽略，新克隆需自行准备匹配平台的 wheel 才能离线安装。新克隆在联网环境可直接运行 `py -3.12 -m pip install -r requirements.txt`。用 `--config 文件路径` 加载另一份完整 TOML 配置。
 
 | 操作 | 效果 |
 | --- | --- |

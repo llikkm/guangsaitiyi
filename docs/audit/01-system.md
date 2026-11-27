@@ -34,7 +34,7 @@ RTOS 1 kHz tick、32 位 tick、抢占调度、FreeRTOS heap 15360 B。另有内
 | 7 | Planner，planner_task | Normal 24 | 1024 | Q_Cmd 事件。读取 pose、生成折线路点并发布 Q_Path。C:606–638 |
 | 无 | defaultTask，StartDefaultTask | Normal 24 | 512 | 反复 osDelay(1)，无业务。M:56–62、153–158、639–647 |
 
-C:202–226 创建上述八个业务任务。R:37–38、43 对 Output 栈和 OLED 优先级、栈、刷新周期有旧值，以源码为准。Control 和 BluetoothTX 用 periodic_wait 执行绝对 tick 调度，落后时把下次设为当前时间加周期。DWT 的 period_us 是上两次开始时间差，execution_us 包含被抢占和函数内等待。两次事件间隔超过约 268 s 时 16 MHz 的 32 位 DWT 取模，间隔会失真。C:177–200、217–219。
+C:202–226 创建上述八个业务任务。交付 README 的任务表已按源码同步 Output 和 OLED 的配置。Control 和 BluetoothTX 用 periodic_wait 执行绝对 tick 调度，落后时把下次设为当前时间加周期。DWT 的 period_us 是上两次开始时间差，execution_us 包含被抢占和函数内等待。两次事件间隔超过约 268 s 时 16 MHz 的 32 位 DWT 取模，间隔会失真。C:177–200、217–219。
 
 ## 任务间通信与中断
 

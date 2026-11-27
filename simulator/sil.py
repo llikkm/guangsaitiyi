@@ -15,7 +15,10 @@ def write_line(stream, value):
 
 
 def header(sim):
-    return dict(format=3,software="2.1" if sim.world.vehicles else "2.0",pymunk=pymunk.version,seed=sim.world.seed,
+    version = "2.0"
+    if sim.world.vehicles:
+        version = "2.1.1" if sim.world.c.get("reviewed_dynamics") else "2.1"
+    return dict(format=3,software=version,pymunk=pymunk.version,seed=sim.world.seed,
                 options=sim.options,controller_sha256=sim.hashes)
 
 
@@ -90,7 +93,7 @@ def main():
                 parser.error("Choose either --record or --replay")
             source = stack.enter_context(args.replay.open(encoding="utf8"))
             meta = json.loads(source.readline())
-            if meta.get("format") != 3 or meta.get("software") not in ("2.0","2.1") or meta.get("pymunk") != pymunk.version:
+            if meta.get("format") != 3 or meta.get("software") not in ("2.0","2.1","2.1.1") or meta.get("pymunk") != pymunk.version:
                 parser.error("Expected a compatible V2 experiment")
             sim = Simulation(meta["options"],meta["seed"],replay=True)
             recorded = inputs(source)
