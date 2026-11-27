@@ -28,7 +28,7 @@ class World:
             self.heights[wall] = c["wall_height"]
         self.cars = []
         self.pieces = []
-        for team,kind,pos in layout(c,self.seed+self.match.round):
+        for team,kind,pos in self.initial_pieces():
             r,m = c["diameter"]/2,c["piece_mass"]
             body = pm.Body(m,pm.moment_for_circle(m,0,r))
             body.position = pos
@@ -38,6 +38,9 @@ class World:
             self.heights[shape] = c["piece_height"]
             self.pieces.append((team,kind,body))
         self.reset_cars()
+
+    def initial_pieces(self):
+        return layout(self.c,self.seed+self.match.round)
 
     def reset_cars(self):
         for car in self.cars:
@@ -68,8 +71,7 @@ class World:
         settling = not self.match.round and self.match.tick >= round(self.match.duration*c["rate"])
         if settling:
             commands = [(0,0),(0,0)]
-        for car,cmd in zip(self.cars,commands):
-            car.drive(cmd,dt)
+        self.advance_drive(commands,dt)
         for _,_,body in self.pieces:
             # Sliding friction acts against motion, capped at the impulse to stop.
             dv = c["piece_mu"] * c["gravity_mm_s2"] * dt
@@ -84,14 +86,22 @@ class World:
                 body.angular_velocity -= math.copysign(min(abs(spin), dw), spin)
         self.space.step(dt)
         self.elapsed += 1
+        self.update_sensors(dt)
+        old_round = self.match.round
+        settled = all(b.velocity.length < c["rest_speed"] for _,_,b in self.pieces) and all(car.body.velocity.length < c["rest_speed"] for car in self.cars)
+        self.match.update(((t,k,*b.position) for t,k,b in self.pieces), settled)
+        if self.match.round != old_round:
+            self.setup()
+
+    def advance_drive(self,commands,dt):
+        for car,cmd in zip(self.cars,commands):
+            car.drive(cmd,dt)
+
+    def update_sensors(self,dt):
+        c = self.c
         for i,car in enumerate(self.cars):
             counts = tuple(turns_to_counts(n,c["counts"]) for n in car.rotations)
             self.gyros[i] = car.body.angular_velocity+c["gyro_bias"]
             self.estimates[i].update(counts,self.gyros[i],dt)
         if self.elapsed - self.scan_tick >= max(1, round(c["rate"]/c["scan_rate"])):
             self.refresh_scans()
-        old_round = self.match.round
-        settled = all(b.velocity.length < c["rest_speed"] for _,_,b in self.pieces) and all(car.body.velocity.length < c["rest_speed"] for car in self.cars)
-        self.match.update(((t,k,*b.position) for t,k,b in self.pieces), settled)
-        if self.match.round != old_round:
-            self.setup()

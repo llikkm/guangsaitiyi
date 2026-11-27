@@ -55,12 +55,19 @@ class Car:
         self.rotations = [0.,0.]
 
     def drive(self, commands, dt):
+        self.update_wheels(commands, dt)
+        self.apply_traction(dt)
+
+    def update_wheels(self, commands, dt):
+        for i, command in enumerate(commands):
+            desired = clamp(command, self.c["speed"])
+            self.speed[i] += clamp(desired-self.speed[i], self.c["accel"]*dt)
+
+    def apply_traction(self, dt):
         c,b = self.c,self.body
         forward = b.rotation_vector
         side = forward.perpendicular()
         for i,y in enumerate((c["track"]/2,-c["track"]/2)):
-            desired = clamp(commands[i],c["speed"])
-            self.speed[i] += clamp(desired-self.speed[i],c["accel"]*dt)
             self.rotations[i] += travel_to_turns(self.speed[i]*dt, c["wheel"])
             p = b.local_to_world((0,y))
             v = b.velocity_at_world_point(p)

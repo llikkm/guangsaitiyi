@@ -1,0 +1,30 @@
+# V2.0 reference experiment. Vehicle and field defaults come from config.toml.
+[assumed]
+rate = 200
+scan_rate = 12
+motor_hz = 200
+pid_hz = 100
+encoder_hz = 100
+imu_hz = 100
+control_hz = 100
+navigation_hz = 20
+speed_kp = 0.0007
+speed_ki = 0.0006
+speed_kd = 0.0
+
+[display]
+fps = 60
+
+[team_a]
+controller = "controllers/motion_check.py"
+[team_a.options]
+speed_mm_s = 180
+
+[team_b]
+controller = "controllers/idle.py"
+
+# Optional scene; omit pieces for regulation random layout, use [] for none.
+# [scene]
+# poses = [[400, 400, 0], [2600, 1600, 3.14159]]
+# pieces = [[0, 6, 780, 400]]
+# obstacles = [[1000, 400, 120, 160, 180]]

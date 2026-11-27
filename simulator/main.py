@@ -1,10 +1,10 @@
 import argparse
-import math
 from collections import deque
 from datetime import datetime
 from pathlib import Path
 
 import pygame as pg
+from field_view import field_view
 from control import navigate, clamp
 from experiment import sample, save
 from physics import World
@@ -32,19 +32,13 @@ def run(c, seed, replay=None, fps=60):
     paths = [deque(maxlen=2000),deque(maxlen=2000)]
     log = []
     message = ""
+    px,draw = field_view(screen,c,small)
     scale = min(840/c["width"],580/c["height"])
     left,base = 24,630
-
-    def px(x,y):
-        return round(left+x*scale),round(base-y*scale)
-
-    def area(x,y,width,height,color):
-        pg.draw.rect(screen,color,(*px(x,y+height),round(width*scale),round(height*scale)))
 
     def label(text,x,y,color=(223,232,235)):
         screen.blit(font.render(str(text),True,color),(x,y))
 
-    colors = [(236,112,96),(223,231,242)]
     controls = [
         ("Play/Pause", pg.K_p), ("Brake", pg.K_SPACE), ("Team", pg.K_TAB),
         ("Speed", pg.K_t), ("FPS", pg.K_f), ("Bumper", pg.K_b),
@@ -172,37 +166,8 @@ def run(c, seed, replay=None, fps=60):
                     paths[i].append(px(*car.body.position))
         screen.fill((20,31,40))
         label("OPTICAL CHESS    /    MOTION LAB",left,16)
-        area(0,0,c["width"],c["height"],(73,92,92))
-        s = c["scatter"]
-        area((c["width"]-s)/2,(c["height"]-s)/2,s,s,(90,107,102))
-        for i in range(2):
-            x = c["width"]-c["goal_depth"] if i else 0
-            area(x,0,c["goal_depth"],c["height"],(66,85,106) if i else (101,78,76))
-            area(x,(c["height"]-c["goal_width"])/2,c["goal_depth"],c["goal_width"],
-                 (71,93,131) if i else (127,85,81))
-            inset = c["start_inset"]
-            area(c["width"]-inset-c["start"] if i else inset,
-                 c["height"]-inset-c["start"] if i else inset,c["start"],c["start"],(100,108,106))
-            if len(paths[i])>1: pg.draw.lines(screen,colors[i],False,list(paths[i]),2)
+        draw(w,team,paths,target)
         car = w.cars[team]
-        for angle,distance in w.scans[team]:
-            if distance is not None:
-                x,y,yaw = w.scan_poses[team]
-                a = angle+yaw
-                pg.draw.circle(screen,(96,225,175),px(x+distance*math.cos(a),y+distance*math.sin(a)),2)
-        for t,k,b in w.pieces:
-            p = px(*b.position)
-            pg.draw.circle(screen,(25,30,33),p,round(c["diameter"]/2*scale))
-            glyph = small.render("GAEHRCP"[k],True,colors[t])
-            screen.blit(glyph,glyph.get_rect(center=p))
-        for i,bot in enumerate(w.cars):
-            pg.draw.polygon(screen,colors[i],[px(*bot.body.local_to_world(v)) for v in bot.shape.get_vertices()])
-            for rail in bot.rails:
-                pg.draw.line(screen,colors[i],px(*bot.body.local_to_world(rail.a)),
-                             px(*bot.body.local_to_world(rail.b)),max(2,round(2*rail.radius*scale)))
-            pg.draw.line(screen,(22,34,35),px(*bot.body.position),
-                         px(*bot.body.local_to_world((c["length"]/2,0))),3)
-        if target: pg.draw.circle(screen,(254,213,103),px(*target),6,2)
         m = w.match
         x,y = car.body.position
         ex,ey,eh = w.estimates[team].pose

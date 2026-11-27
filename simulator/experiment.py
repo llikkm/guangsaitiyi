@@ -34,7 +34,7 @@ def analyze(path):
         header = json.loads(next(stream))
         for line in stream:
             row = json.loads(line)
-            if "action" in row:
+            if "action" in row or "end_tick" in row:
                 continue
             for i,car in enumerate(row["cars"]):
                 errors[i].append(math.dist(car["truth"][:2],car["estimate"][:2]))

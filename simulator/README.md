@@ -2,7 +2,22 @@
 
 在同一块场地上驾驶两辆差速车、推动棋子，观察碰撞后的真实轨迹和传感器估计。坐标原点在场地左下角，向右为 +x，向上为 +y，航向角从 +x 逆时针计。长度用 mm，时间用 s，质量用 kg，日志角度用 rad。
 
-## 启动
+## V2.0 算法实验
+
+在仓库根目录运行以下命令。默认示例中甲车先直行，再原地旋转并停车，乙车留在发车区。
+
+```powershell
+py -3.12 simulator/sil.py --gui --seconds 4
+py -3.12 simulator/sil.py --seconds 4 --record simulator/runs/demo-v2.jsonl
+py -3.12 simulator/sil.py --gui --replay simulator/runs/demo-v2.jsonl --speed 0.1
+py -3.12 simulator/experiment.py simulator/runs/demo-v2.jsonl
+```
+
+无窗口运行按固定物理步连续计算，用 `--seconds` 指定仿真时长。窗口模式支持 `--speed 4` 加速，空格暂停，上下键调速，Tab 切换车辆。关闭窗口会结束本次运行。录制时使用新的文件名。
+
+修改 [v2.toml](v2.toml) 的 `team_a.controller` 和 `team_b.controller`，即可用相同场景比较两套算法。自定义配置用 `--config 路径` 指定。传感器单位、调度顺序和场景格式见[控制器接口说明](CONTROLLERS.md)。
+
+## V1.1 手动驾驶与依赖安装
 
 在 Windows PowerShell 中从仓库根目录运行。当前离线安装包适配 Windows x64 和 CPython 3.12。
 
