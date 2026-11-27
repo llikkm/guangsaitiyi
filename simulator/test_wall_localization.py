@@ -6,6 +6,30 @@ from wall_localization import RectangleLocator, pavo_scan
 
 
 class WallLocalizationTests(unittest.TestCase):
+    def test_wall_slip_then_reverse(self):
+        from test_dynamics import experiment
+        w = experiment(scene={"poses":[[2600,500,0],[400,1700,math.pi]],"pieces":[]}).world
+        for tick in range(1400):
+            u = .8 if tick<800 else (-.6 if tick<1200 else 0.)
+            w.step([(u,u),(0,0)])
+            if tick in (799,1399):
+                self.assertGreater(w.estimates[0].pose[0]-w.cars[0].body.position.x,1200)
+                self.assertEqual(w.wall_fixes[0].status,"ok")
+                self.assertLess(math.dist(w.wall_fixes[0].pose[:2],w.scan_poses[0][:2]),5)
+
+    def test_reacquire_after_blind_slip(self):
+        from wall_localization import WallTracker
+        options = settings()
+        options["scene"] = dict(poses=[[2400,500,.2],[400,1700,1]],pieces=[])
+        w = Simulation(options).world
+        tracker = WallTracker(RectangleLocator(3000,2000))
+        self.assertEqual(tracker.update(w.scans[0],0,(2400,500,.2)).status,"ok")
+        self.assertIsNone(tracker.update([],1,(3700,500,.2)).pose)
+        self.assertIsNone(tracker.update(w.scans[0],1.1,(3700,500,.2)).pose)
+        fix = tracker.update(w.scans[0],1.2,(3700,500,.2))
+        self.assertEqual(fix.status,"ok")
+        self.assertLess(math.dist(fix.pose[:2],(2400,500)),5)
+
     def test_two_cars_motion_and_scan_timestamps(self):
         sim = Simulation(settings())
         checked = 0

@@ -96,3 +96,64 @@ class RectangleLocator:
                                (x,self.width-x,y,self.height-y),support,rms,"ok")
             x,y,h = x+dx,y+dy,h+turn
         return reject("no_convergence")
+
+
+class WallTracker:
+    """Per-robot history; odometry and scans must share an acquisition time."""
+    def __init__(self, locator):
+        self.locator = locator
+        self.anchor = self.pending = None
+
+    @staticmethod
+    def predict(anchor, odom):
+        fix, old = anchor
+        x,y,h = fix.pose
+        rot = h-old[2]
+        dx,dy = odom[0]-old[0],odom[1]-old[1]
+        return (x+dx*math.cos(rot)-dy*math.sin(rot),
+                y+dx*math.sin(rot)+dy*math.cos(rot),h+odom[2]-old[2])
+
+    def update(self, beams, time, odom):
+        prior = self.predict(self.anchor,odom) if self.anchor else odom
+        fix = self.locator.locate(beams,time,prior)
+        if fix.pose is None and self.anchor and fix.status not in ("ambiguous_heading","too_few_returns"):
+            # With a recently tracked heading, extrema along map axes give wall
+            # translation hypotheses. Interior obstacles can only shorten a ray.
+            if 0 <= time-self.anchor[0].time <= 10:
+                candidate = self.reacquire(beams,time,prior[2])
+                if candidate:
+                    if self.pending and 0 < time-self.pending[0].time <= .5:
+                        predicted = self.predict(self.pending,odom)
+                        if (math.dist(candidate.pose[:2],predicted[:2]) < 100 and
+                            abs(math.remainder(candidate.pose[2]-predicted[2],math.tau)) < .12):
+                            fix = candidate
+                    self.pending = candidate,odom
+                else:
+                    self.pending = None
+        else:
+            self.pending = None
+        if fix.pose:
+            self.anchor = fix,odom
+            self.pending = None
+        return fix
+
+    def reacquire(self, beams, time, heading):
+        loc = self.locator
+        mx,my,yaw = loc.mount
+        c,s = math.cos(heading),math.sin(heading)
+        points = [(mx*c-my*s+r*math.cos(a+yaw+heading),
+                   mx*s+my*c+r*math.sin(a+yaw+heading))
+                  for a,r in beams if r and r>0 and math.isfinite(r) and math.isfinite(a)]
+        if len(points)<12: return None
+        xs,ys = zip(*points)
+        if min(abs(max(xs)-min(xs)-loc.width),abs(max(ys)-min(ys)-loc.height)) > 100:
+            return None
+        best = None
+        for x in (-min(xs),loc.width-max(xs)):
+            for y in (-min(ys),loc.height-max(ys)):
+                fix = loc.locate(beams,time,(x,y,heading))
+                if fix.pose and fix.support >= .8 and fix.rms_mm <= 20:
+                    if best and math.dist(best.pose[:2],fix.pose[:2]) > 100:
+                        return None
+                    if best is None or fix.support > best.support: best = fix
+        return best

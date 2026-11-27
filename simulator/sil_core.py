@@ -10,7 +10,7 @@ import tomllib
 import pymunk as pm
 from control import clamp
 from physics import World
-from wall_localization import RectangleLocator
+from wall_localization import RectangleLocator, WallTracker
 from robot_api import MotorCommand, Observation, WheelSpeed
 from rules import config
 from units import counts_to_travel, turns_to_counts
@@ -163,6 +163,7 @@ class Plant(World):
                         raise ValueError("Overlapping objects in scene")
 
     def reset_cars(self):
+        self.wall_trackers = [WallTracker(self.locator) for _ in range(2)]
         super().reset_cars()
         poses = self.scene.get("poses")
         if poses is not None:
@@ -175,6 +176,8 @@ class Plant(World):
         self.measured_speed = [(0.,0.),(0.,0.)]
         self.encoder_tick = self.imu_tick = self.motor_tick = self.elapsed
         self.gyros = [self.c["gyro_bias"]]*2
+        # The base reset scans the start boxes before custom scenario poses apply.
+        self.wall_trackers = [WallTracker(self.locator) for _ in range(2)]
         self.refresh_scans()
 
     def advance_drive(self, commands, dt):
@@ -211,8 +214,8 @@ class Plant(World):
 
     def refresh_scans(self):
         super().refresh_scans()
-        self.wall_fixes = [self.locator.locate(beams, self.scan_tick/self.c["rate"], odom.pose)
-                           for beams, odom in zip(self.scans, self.estimates)]
+        self.wall_fixes = [tracker.update(beams,self.scan_tick/self.c["rate"],odom.pose)
+                           for tracker,beams,odom in zip(self.wall_trackers,self.scans,self.estimates)]
 
     def observation(self,i):
         rate = self.c["rate"]
