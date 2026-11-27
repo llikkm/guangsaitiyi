@@ -18,9 +18,12 @@ def sample(w, commands):
                 pieces=[[t,k,*b.position] for t,k,b in w.pieces])
 
 
-def save(path, config, seed, samples):
+def save(path, config, seed, samples, timeline=None):
     with Path(path).open("x",encoding="utf8") as out:
-        print(json.dumps(dict(format=1,config=config,seed=seed)),file=out)
+        print(json.dumps(dict(format=2,software="1.1",config=config,seed=seed)),file=out)
+        if timeline is not None:
+            for event in timeline.events:
+                print(json.dumps(event,separators=(",",":")),file=out)
         for row in samples:
             print(json.dumps(row,separators=(",",":")),file=out)
 
@@ -31,6 +34,8 @@ def analyze(path):
         header = json.loads(next(stream))
         for line in stream:
             row = json.loads(line)
+            if "action" in row:
+                continue
             for i,car in enumerate(row["cars"]):
                 errors[i].append(math.dist(car["truth"][:2],car["estimate"][:2]))
     return dict(seed=header["seed"], samples=len(errors[0]),

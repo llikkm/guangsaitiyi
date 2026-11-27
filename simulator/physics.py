@@ -4,6 +4,7 @@ from match import Match
 from rules import layout
 from sensors import Odometry, scan
 from vehicle import Car
+from units import turns_to_counts
 
 
 class World:
@@ -40,12 +41,16 @@ class World:
 
     def reset_cars(self):
         for car in self.cars:
-            self.space.remove(car.shape, car.body)
+            self.space.remove(*car.rails, car.shape, car.body)
+            for rail in car.rails:
+                del self.heights[rail]
             del self.heights[car.shape]
         self.cars = [Car(self.space, self.c, team) for team in range(2)]
         self.estimates = []
         for car in self.cars:
             self.heights[car.shape] = self.c["car_height"]
+            for rail in car.rails:
+                self.heights[rail] = self.c["bumper_height"]
             self.estimates.append(Odometry((*car.body.position, car.body.angle), self.c))
         self.gyros = [0., 0.]
         self.refresh_scans()
@@ -63,21 +68,24 @@ class World:
         settling = not self.match.round and self.match.tick >= round(self.match.duration*c["rate"])
         if settling:
             commands = [(0,0),(0,0)]
-            for car in self.cars:
-                car.speed = [0.,0.]
-                car.body.body_type = pm.Body.KINEMATIC
-                car.body.velocity = (0,0)
-                car.body.angular_velocity = 0
         for car,cmd in zip(self.cars,commands):
-            if not settling: car.drive(cmd,dt)
+            car.drive(cmd,dt)
         for _,_,body in self.pieces:
-            decay = math.exp(-c["floor_drag"]*dt)
-            body.velocity *= decay
-            body.angular_velocity *= decay
+            # Sliding friction acts against motion, capped at the impulse to stop.
+            dv = c["piece_mu"] * c["gravity_mm_s2"] * dt
+            speed = body.velocity.length
+            if speed:
+                impulse = -body.velocity * (body.mass * min(1, dv/speed))
+                body.apply_impulse_at_world_point(impulse, body.position)
+            # Uniform pressure under a disc gives torque (2/3) mu*m*g*r.
+            spin = body.angular_velocity
+            if spin:
+                dw = (2/3)*body.mass*dv*(c["diameter"]/2)/body.moment
+                body.angular_velocity -= math.copysign(min(abs(spin), dw), spin)
         self.space.step(dt)
         self.elapsed += 1
         for i,car in enumerate(self.cars):
-            counts = tuple(round(n*c["counts"]) for n in car.rotations)
+            counts = tuple(turns_to_counts(n,c["counts"]) for n in car.rotations)
             self.gyros[i] = car.body.angular_velocity+c["gyro_bias"]
             self.estimates[i].update(counts,self.gyros[i],dt)
         if self.elapsed - self.scan_tick >= max(1, round(c["rate"]/c["scan_rate"])):

@@ -1,4 +1,5 @@
 import math
+from units import counts_to_travel, radians
 
 
 class Odometry:
@@ -9,7 +10,8 @@ class Odometry:
 
     def update(self, counts, gyro, dt):
         x,y,h = self.pose
-        distance = sum(n-old for n,old in zip(counts,self.counts))*math.pi*self.c["wheel"]/(2*self.c["counts"])
+        mean_counts = sum(n-old for n,old in zip(counts,self.counts))/2
+        distance = counts_to_travel(mean_counts, self.c["wheel"], self.c["counts"])
         turn = gyro*dt
         self.pose = (x+distance*math.cos(h+turn/2),y+distance*math.sin(h+turn/2),math.remainder(h+turn,math.tau))
         self.counts = counts
@@ -22,7 +24,7 @@ def scan(world, car):
     query = pm.ShapeFilter(group=car.shape.filter.group)
     readings = []
     for i in range(c["rays"]):
-        angle = math.radians(c["fov"]*(i/(c["rays"]-1)-0.5))
+        angle = radians(c["fov"]*(i/(c["rays"]-1)-0.5))
         direction = pm.Vec2d(1,0).rotated(car.body.angle+angle)
         end = start + direction*c["range_mm"]
         hits = world.space.segment_query(start,end,0,query)

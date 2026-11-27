@@ -7,8 +7,12 @@ from pathlib import Path
 def config(path=None):
     with open(path or Path(__file__).with_name("config.toml"), "rb") as f:
         data = tomllib.load(f)
-    c = {k: v for section in ("theoretical", "assumed", "measured")
-         for k, v in data[section].items()}
+    with open(Path(__file__).with_name("config.toml"), "rb") as f:
+        defaults = tomllib.load(f)
+    c = {k: v for section in ("theoretical", "assumed", "nominal", "measured")
+         for k, v in (defaults.get(section, {}) | data.get(section, {})).items()}
+    if c["piece_mu"] < 0 or c["gravity_mm_s2"] <= 0:
+        raise ValueError("Invalid floor friction or gravity")
     if not 0 < min(c["mass"], c["mass_b"]) or max(c["mass"], c["mass_b"]) >= 2.5:
         raise ValueError("Competition car mass must be positive and below 2.5 kg")
     dims = (c["length"], c["breadth"], c["car_height"])
