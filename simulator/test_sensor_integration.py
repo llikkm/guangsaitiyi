@@ -3,6 +3,7 @@ import io
 import json
 import math
 import unittest
+from unittest.mock import patch
 
 from control import navigate
 from encoder_sensor import EncoderSample, encoder_delta
@@ -12,6 +13,38 @@ from sil_core import SENSOR_REFERENCE, Simulation, settings
 
 
 class SensorIntegrationTests(unittest.TestCase):
+    def test_window_displays_raw_estimate_alongside_navigation(self):
+        import pygame as pg
+        from sil_view import watch
+
+        options = settings(SENSOR_REFERENCE)
+        options["scene"] = dict(poses=[[2600, 500, 0], [400, 1700, math.pi]], pieces=[])
+        sim = Simulation(options)
+        sim.manual[0] = MotorCommand(.8, .8)
+        for _ in range(800):
+            sim.step()
+        obs = sim.world.observation(0)
+        self.assertGreater(obs.estimated_pose[0] - obs.navigation_pose[0], 1200)
+
+        rendered = []
+        native_font = pg.font.Font
+
+        class RecordingFont:
+            def __init__(self, *args):
+                self.font = native_font(*args)
+
+            def render(self, text, *args):
+                rendered.append(text)
+                return self.font.render(text, *args)
+
+        with patch.object(pg.font, "Font", RecordingFont):
+            watch(sim, lambda: False, speed=16)
+        x, y, h = obs.estimated_pose
+        self.assertIn(f"Estimated xy  {x:.1f}, {y:.1f}", rendered)
+        self.assertIn(f"Estimated yaw  {h:.3f} rad", rendered)
+        nx, ny, _ = obs.navigation_pose
+        self.assertIn(f"Nav xy mm  {nx:.1f}, {ny:.1f}", rendered)
+
     def test_click_navigation_after_wall_slip(self):
         options = settings(SENSOR_REFERENCE)
         options["scene"] = dict(poses=[[2600, 500, 0], [400, 1700, math.pi]], pieces=[])

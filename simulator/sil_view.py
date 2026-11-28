@@ -105,10 +105,12 @@ def watch(sim,advance,speed):
             screen.fill((20,31,40))
             draw(w,team,trails,target)
             obs = w.observation(team)
-            x,y,h = obs.navigation_pose
+            x,y,h = obs.estimated_pose
+            nx,ny,nh = obs.navigation_pose
             mode = "Manual" if team in sim.manual else ("Algorithm" if sim.controllers else "Replay")
             rows = [f"V{version}  {mode}",f"Team {'AB'[team]}    {obs.time:.3f} s",
-                    f"Nav xy mm  {x:.1f}, {y:.1f}",f"Nav yaw  {h:.3f} rad",
+                    f"Estimated xy  {x:.1f}, {y:.1f}",f"Estimated yaw  {h:.3f} rad",
+                    f"Nav xy mm  {nx:.1f}, {ny:.1f}",f"Nav yaw  {nh:.3f} rad",
                     f"PWM   {sim.pwm[team][0]:.3f}, {sim.pwm[team][1]:.3f}",
                     f"Encoders   {obs.encoder_counts}",f"Gyro   {obs.gyro_rad_s:.3f} rad/s",
                     f"Score   {w.match.scores}",f"{speed:g}x    {fps} FPS",
@@ -130,7 +132,7 @@ def watch(sim,advance,speed):
                 for label,attr in (("Current A","current"),("Wheel rad/s","omega"),("Slip m/s","slip"),("Traction N","longitudinal_n")):
                     rows.append(label+"   "+" / ".join(f"{getattr(wheel,attr):.2f}" for wheel in car.wheels))
             for i,row in enumerate(rows):
-                screen.blit(font.render(row,True,(223,232,235)),(880,22+22*i))
+                screen.blit(font.render(row,True,(223,232,235)),(880,20+21*i))
             for rect,name,_ in controls:
                 pg.draw.rect(screen,(57,82,96),rect,border_radius=4)
                 screen.blit(font.render(name,True,(223,232,235)),(rect.x+5,rect.y+6))
