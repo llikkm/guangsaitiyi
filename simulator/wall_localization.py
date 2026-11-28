@@ -111,7 +111,7 @@ class WallTracker:
         rot = h-old[2]
         dx,dy = odom[0]-old[0],odom[1]-old[1]
         return (x+dx*math.cos(rot)-dy*math.sin(rot),
-                y+dx*math.sin(rot)+dy*math.cos(rot),h+odom[2]-old[2])
+                y+dx*math.sin(rot)+dy*math.cos(rot),math.remainder(h+odom[2]-old[2], math.tau))
 
     def update(self, beams, time, odom):
         prior = self.predict(self.anchor,odom) if self.anchor else odom

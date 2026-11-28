@@ -264,7 +264,9 @@ class Plant(World):
             return Observation(self.elapsed/rate, tuple(self.estimates[i].pose), self.scans[i],
                                scan.time if scan else 0., self.gyros[i], imu.time if imu else 0.,
                                self.counts[i], encoder.time if encoder else 0., self.wall_fixes[i],
-                               scan, imu, encoder)
+                               scan, imu, encoder,
+                               suite.tracker.predict(suite.tracker.anchor, self.estimates[i].pose)
+                               if suite.tracker.anchor else None)
         return Observation(self.elapsed/rate, tuple(self.estimates[i].pose),
                            tuple(self.scans[i]), self.scan_tick/rate, self.gyros[i],
                            self.imu_tick/rate, self.counts[i], self.encoder_tick/rate, self.wall_fixes[i])

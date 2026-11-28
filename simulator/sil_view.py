@@ -91,7 +91,7 @@ def watch(sim,advance,speed):
                     if f or t:
                         target = None
                     if target:
-                        cmd,arrived = navigate(w.observation(team).estimated_pose,target,w.cars[team].c)
+                        cmd,arrived = navigate(w.observation(team).navigation_pose,target,w.cars[team].c)
                         sim.manual[team] = WheelSpeed(*cmd)
                         if arrived: target = None
                     else:
@@ -105,10 +105,10 @@ def watch(sim,advance,speed):
             screen.fill((20,31,40))
             draw(w,team,trails,target)
             obs = w.observation(team)
-            x,y,h = obs.estimated_pose
+            x,y,h = obs.navigation_pose
             mode = "Manual" if team in sim.manual else ("Algorithm" if sim.controllers else "Replay")
             rows = [f"V{version}  {mode}",f"Team {'AB'[team]}    {obs.time:.3f} s",
-                    f"Estimated xy  {x:.1f}, {y:.1f}",f"Estimated yaw  {h:.3f} rad",
+                    f"Nav xy mm  {x:.1f}, {y:.1f}",f"Nav yaw  {h:.3f} rad",
                     f"PWM   {sim.pwm[team][0]:.3f}, {sim.pwm[team][1]:.3f}",
                     f"Encoders   {obs.encoder_counts}",f"Gyro   {obs.gyro_rad_s:.3f} rad/s",
                     f"Score   {w.match.scores}",f"{speed:g}x    {fps} FPS",

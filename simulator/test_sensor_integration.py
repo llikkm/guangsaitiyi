@@ -1,15 +1,38 @@
 """V2.2 controller, firmware counter, delayed delivery and replay regressions."""
 import io
 import json
+import math
 import unittest
 
+from control import navigate
 from encoder_sensor import EncoderSample, encoder_delta
-from robot_api import ScanSample
+from robot_api import MotorCommand, ScanSample, WheelSpeed
 from sil import execute, inputs
 from sil_core import SENSOR_REFERENCE, Simulation, settings
 
 
 class SensorIntegrationTests(unittest.TestCase):
+    def test_click_navigation_after_wall_slip(self):
+        options = settings(SENSOR_REFERENCE)
+        options["scene"] = dict(poses=[[2600, 500, 0], [400, 1700, math.pi]], pieces=[])
+        sim = Simulation(options)
+        w = sim.world
+        sim.manual[0] = MotorCommand(.8, .8)
+        for _ in range(800):
+            sim.step()
+        obs = w.observation(0)
+        self.assertGreater(obs.estimated_pose[0] - w.cars[0].body.position.x, 1200)
+        self.assertLess(math.dist(obs.navigation_pose[:2], w.cars[0].body.position), 100)
+        target = (2200, 800)
+        for _ in range(2400):
+            speeds, arrived = navigate(w.observation(0).navigation_pose, target, w.cars[0].c)
+            sim.manual[0] = WheelSpeed(*speeds)
+            sim.step()
+            if arrived:
+                break
+        self.assertTrue(arrived)
+        self.assertLess(math.dist(w.cars[0].body.position, target), w.c["arrival"] + 10)
+
     def test_real_scan_time_and_angle_adapter(self):
         scan = ScanSample.from_pavo([(90, 1.5), (180, 0)], [.09, .10], .12)
         self.assertAlmostEqual(scan.beams[0][0], -1.57079632679)

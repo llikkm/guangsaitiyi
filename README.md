@@ -1,5 +1,7 @@
 # 光电象棋智能车
 
+V2.2.1 修复顶墙空转后的点击导航。手动驾驶时点击场地，侧栏 `Nav xy mm` 显示本次导航使用的位置。
+
 当前交付为二维仿真平台和 STM32 底盘控制基线。棋子识别和自主对弈策略待开发。[雷达采集分析](lidar_analysis/README.md) · [接线与调试入口](开发基本调线.md)
 
 [二维仿真运行说明](simulator/README.md) · [仿真测试记录](simulator/TESTING.md) · [STM32 小车工程说明](AMR_NEW_CodingDay4/README-CodingDay4.md)

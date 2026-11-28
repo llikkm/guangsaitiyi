@@ -20,7 +20,8 @@ def sample(w, commands):
         if getattr(w, "sensor_config", None) is not None:
             obs = w.observation(i)
             scan = obs.lidar_sample
-            cars[-1].update(scan_tick=w.suites[i].delivery_tick,
+            cars[-1].update(navigation_pose=obs.navigation_pose,
+                            scan_tick=w.suites[i].delivery_tick,
                             imu_sample=asdict(obs.imu_sample) if obs.imu_sample else None,
                             encoder_sample=asdict(obs.encoder_sample) if obs.encoder_sample else None,
                             beam_times=scan.times if scan else (),

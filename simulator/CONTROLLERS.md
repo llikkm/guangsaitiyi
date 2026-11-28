@@ -32,6 +32,7 @@ class Controller:
 | `read_imu()`、`imu_time` | 模拟陀螺的偏航角速度 rad/s 及采样时间 |
 | `read_encoders()`、`encoder_time` | 左、右轮累计计数及采样时间 |
 | `estimated_pose` | 由已知起点、模拟编码器和陀螺推算的 (x mm, y mm, 航向 rad) |
+| `navigation_pose` | V2.2.1 点击导航使用的当前位姿，单位同上。最近一次有效雷达定位加上之后的里程计增量。首次定位前及旧版模型返回原始里程计 |
 | `return robot.set_pwm(left, right)` | 两轮归一化 PWM，范围 [-1, 1]，正号为前进。也可直接返回 `MotorCommand(left_pwm=..., right_pwm=...)` |
 | `return robot.set_wheel_speed(left, right)` | 两轮目标 mm/s。轮速环将目标与编码器测速比较，产生 PWM |
 | `return robot.stop()` | 两侧零 PWM，车辆按动力学减速 |

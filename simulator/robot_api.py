@@ -63,6 +63,11 @@ class Observation:
     lidar_sample: ScanSample | None = None
     imu_sample: "ImuSample | None" = None
     encoder_sample: "EncoderSample | None" = None
+    corrected_pose: tuple | None = None
+
+    @property
+    def navigation_pose(self):
+        return self.corrected_pose if self.corrected_pose is not None else self.estimated_pose
 
     def read_lidar(self):
         return self.lidar

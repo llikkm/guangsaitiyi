@@ -18,7 +18,7 @@ py -3.12 simulator/studio.py
 py -3.12 simulator/sil.py --seconds 4 --record simulator/runs/wall-demo.jsonl
 ~~~
 
-遥测中每辆车的 wall_fix 保存该时刻最近一帧的解。按其 time 去重。评估时用同一扫描对应的 scan_pose 作仿真真值。原有 estimate 和控制器 estimated_pose 都表示编码器与陀螺推算结果。当前导航按其原有方式工作，开发者可以在自己的控制器中读取雷达解。
+遥测中每辆车的 wall_fix 保存该时刻最近一帧的解。按其 time 去重。评估时用同一扫描对应的 scan_pose 作仿真真值。原有 estimate 和控制器 estimated_pose 都表示编码器与陀螺推算结果。V2.2.1 点击导航读取 navigation_pose，其中包含最近一次有效墙面定位的校正。
 
 ## 控制器和实车共用的接口
 
