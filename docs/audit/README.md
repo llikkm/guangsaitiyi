@@ -18,18 +18,20 @@
 3. [导航、风险与复用分类](03-navigation.md)
 4. [车载 Linux 接入与验证方案](04-integration-tests.md)
 
-下文路径均相对于工作区根目录，文件名简写如下。行号对应原交付源码，区间包含两端。
+下文路径均相对于工作区根目录，文件名简写如下。行号固定对应原交付提交 `8985608`，区间包含两端。下表链接固定到该提交。
+
+查现行固件时按函数名搜索。驱动输出见 `pwm_pair`，雷达接收见 `lidar_task`，目标解析见 `parse_goal`，蓝牙输入见 `bluetooth_task`，规划见 `planner_task`，里程计和控制见 `control_task`，初始化见 `CodingDay_Init`。[当前工作区源码](../../AMR_NEW_CodingDay4/Core/Src/coding_day.c)
 
 | 简写 | 文件 |
 |---|---|
-| C | [AMR_NEW_CodingDay4/Core/Src/coding_day.c](../../AMR_NEW_CodingDay4/Core/Src/coding_day.c) |
-| M | [AMR_NEW_CodingDay4/Core/Src/main.c](../../AMR_NEW_CodingDay4/Core/Src/main.c) |
-| MSP | [AMR_NEW_CodingDay4/Core/Src/stm32f4xx_hal_msp.c](../../AMR_NEW_CodingDay4/Core/Src/stm32f4xx_hal_msp.c) |
-| IRQ | [AMR_NEW_CodingDay4/Core/Src/stm32f4xx_it.c](../../AMR_NEW_CodingDay4/Core/Src/stm32f4xx_it.c) |
-| RT | [AMR_NEW_CodingDay4/Core/Inc/FreeRTOSConfig.h](../../AMR_NEW_CodingDay4/Core/Inc/FreeRTOSConfig.h) |
-| IOC | [AMR_NEW_CodingDay4/AMR_NEW.ioc](../../AMR_NEW_CodingDay4/AMR_NEW.ioc) |
-| PC | [AMR_NEW_CodingDay4/pc_monitor.py](../../AMR_NEW_CodingDay4/pc_monitor.py) |
-| R | [AMR_NEW_CodingDay4/README-CodingDay4.md](../../AMR_NEW_CodingDay4/README-CodingDay4.md) |
+| C | [AMR_NEW_CodingDay4/Core/Src/coding_day.c](https://github.com/llikkm/guangsaitiyi/blob/8985608adaade380382851ad8fd32c06973d4ead/AMR_NEW_CodingDay4/Core/Src/coding_day.c) |
+| M | [AMR_NEW_CodingDay4/Core/Src/main.c](https://github.com/llikkm/guangsaitiyi/blob/8985608adaade380382851ad8fd32c06973d4ead/AMR_NEW_CodingDay4/Core/Src/main.c) |
+| MSP | [AMR_NEW_CodingDay4/Core/Src/stm32f4xx_hal_msp.c](https://github.com/llikkm/guangsaitiyi/blob/8985608adaade380382851ad8fd32c06973d4ead/AMR_NEW_CodingDay4/Core/Src/stm32f4xx_hal_msp.c) |
+| IRQ | [AMR_NEW_CodingDay4/Core/Src/stm32f4xx_it.c](https://github.com/llikkm/guangsaitiyi/blob/8985608adaade380382851ad8fd32c06973d4ead/AMR_NEW_CodingDay4/Core/Src/stm32f4xx_it.c) |
+| RT | [AMR_NEW_CodingDay4/Core/Inc/FreeRTOSConfig.h](https://github.com/llikkm/guangsaitiyi/blob/8985608adaade380382851ad8fd32c06973d4ead/AMR_NEW_CodingDay4/Core/Inc/FreeRTOSConfig.h) |
+| IOC | [AMR_NEW_CodingDay4/AMR_NEW.ioc](https://github.com/llikkm/guangsaitiyi/blob/8985608adaade380382851ad8fd32c06973d4ead/AMR_NEW_CodingDay4/AMR_NEW.ioc) |
+| PC | [AMR_NEW_CodingDay4/pc_monitor.py](https://github.com/llikkm/guangsaitiyi/blob/8985608adaade380382851ad8fd32c06973d4ead/AMR_NEW_CodingDay4/pc_monitor.py) |
+| R | [AMR_NEW_CodingDay4/README-CodingDay4.md](https://github.com/llikkm/guangsaitiyi/blob/8985608adaade380382851ad8fd32c06973d4ead/AMR_NEW_CodingDay4/README-CodingDay4.md) |
 | BOM | 工作区根目录 week4接线表(1).xlsx，Sheet1。它是接线表，器件参数以实物核对结果为准 |
 
 状态用词：**已实现**表示源码有有效入口，**未实现**表示当前工程无相应处理，**待实测**表示输出、精度或硬件行为尚未测定，**推断**表示由协议、接线或时序推出的可能情况。原交付件含历史编译产物，重新编译与实车测试状态见第四份文档。

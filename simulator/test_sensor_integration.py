@@ -13,6 +13,36 @@ from sil_core import SENSOR_REFERENCE, Simulation, settings
 
 
 class SensorIntegrationTests(unittest.TestCase):
+    def test_range_only_selects_matching_sensitivity(self):
+        from sensor_suite import sensor_options
+        imu = sensor_options({"imu": {"gyro_range_dps": 1000}})["imu"]
+        self.assertEqual(imu["dps_per_count"], .035)
+        with self.assertRaisesRegex(ValueError, "16-bit"):
+            sensor_options({"imu": {"gyro_range_dps": 1000, "dps_per_count": .00875}})
+
+    def test_dense_spin_matches_at_end_of_scan(self):
+        options = settings(SENSOR_REFERENCE)
+        sensors = options["sensors"]
+        sensors["mode"] = "Nominal"
+        sensors["imu"].update(gyro_range_dps=1000., dps_per_count=.035)
+        sensors["lidar"].update(lidar_model="dense", lidar_mount_x_mm=40., lidar_mount_yaw_deg=17.)
+        sim = Simulation(options)
+        sim.manual[0] = MotorCommand(-1, 1)
+        w = sim.world
+        checked = 0
+        for _ in range(200):
+            sim.step()
+            if w.elapsed < 80 or w.suites[0].delivery_tick != w.elapsed:
+                continue
+            self.assertGreater(abs(w.cars[0].body.angular_velocity), math.radians(400))
+            fix = w.wall_fixes[0]
+            self.assertEqual(fix.status, "ok")
+            truth = w.scan_poses[0]
+            self.assertLess(math.dist(fix.pose[:2], truth[:2]), 10)
+            self.assertLess(abs(math.remainder(fix.pose[2]-truth[2], math.tau)), math.radians(2))
+            checked += 1
+        self.assertGreaterEqual(checked, 5)
+
     def test_window_displays_raw_estimate_alongside_navigation(self):
         import pygame as pg
         from sil_view import watch

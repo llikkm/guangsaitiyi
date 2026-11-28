@@ -1,5 +1,7 @@
 # 车载 Linux 最小接入与验证方案
 
+本文行号固定对应原交付版本 8985608。按简写查阅[固定版本源码与当前函数索引](README.md)。
+
 ## 第一阶段，有线替换现有蓝牙
 
 1. STM32 保持原固件。拆下或断开蓝牙模块的 UART，使用电平已核实的 USB-UART 接 Linux。USB-UART TX 接 PA1，RX 接 PA0，共地。若用 Linux 板载 UART，先确认电平和设备树串口配置，关闭该口串口控制台。供电按实际板卡规格独立核对。适配器 VCC 保持断开，避免反向供电。禁止在同一 RX 上并接蓝牙 TX 和 Linux TX，也不要接 RS-232 电平。依据 MSP:431–456；M:521–540；BOM A15:G16。参考 [ST Nucleo-64 UM1724](https://www.st.com/resource/en/user_manual/dm00105823-stlink-v2-in-circuit-debugger-programmer-for-stm8-and-stm32-stmicroelectronics.pdf)。

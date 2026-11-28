@@ -1,10 +1,11 @@
 """V2.2 acquisition, delivery and odometry, one instance per vehicle."""
 from collections import deque
+from bisect import bisect_right
 import math
 import random
 
 from encoder_sensor import EncoderSample
-from imu_sensor import ImuSensor, imu_defaults
+from imu_sensor import GYRO_SENSITIVITY, ImuSensor, imu_defaults
 from lidar_sensor import LidarSensor, lidar_defaults
 from robot_api import ScanSample
 from units import counts_to_travel
@@ -15,9 +16,46 @@ def sensor_options(data):
     mode = data.get("mode", "Ideal")
     if mode not in ("Ideal", "Nominal", "Stress"):
         raise ValueError("Sensor mode must be Ideal, Nominal or Stress")
-    return dict(mode=mode, imu=imu_defaults() | data.get("imu", {}),
-                lidar=lidar_defaults() | data.get("lidar", {}),
+    imu = imu_defaults() | data.get("imu", {})
+    if "dps_per_count" not in data.get("imu", {}) and imu["gyro_range_dps"] in GYRO_SENSITIVITY:
+        imu["dps_per_count"] = GYRO_SENSITIVITY[imu["gyro_range_dps"]]
+    if imu["gyro_range_dps"] > 32768 * imu["dps_per_count"]:
+        raise ValueError("gyro_range_dps exceeds the 16-bit range at this dps_per_count")
+    return dict(mode=mode, imu=imu,
+                lidar=lidar_defaults() | {"motion_compensation": "odometry"} | data.get("lidar", {}),
                 encoder={"latency_s": 0., "stress_latency_s": 0.02} | data.get("encoder", {}))
+
+
+def pose_at(history, stamps, time):
+    right = bisect_right(stamps, time)
+    if right == 0:
+        return history[0][1]
+    t0, (x, y, h) = history[right-1]
+    if right == len(history) or time == t0:
+        return x, y, h
+    t1, (nx, ny, nh) = history[right]
+    f = (time-t0)/(t1-t0)
+    return x+f*(nx-x), y+f*(ny-y), h+f*math.remainder(nh-h, math.tau)
+
+
+def deskew(frame, history, stamps, end_pose, mount):
+    """Express each return in the sensor frame at the last beam's time."""
+    mx, my, yaw = mount
+    def sensor_pose(body):
+        x, y, h = body
+        c, s = math.cos(h), math.sin(h)
+        return x+c*mx-s*my, y+s*mx+c*my, h+yaw
+
+    ex, ey, eh = sensor_pose(end_pose)
+    beams = []
+    for (angle, distance), time in zip(frame.beams, frame.times):
+        if distance is None:
+            continue
+        x, y, h = sensor_pose(pose_at(history, stamps, time))
+        dx = x-ex + distance*math.cos(h+angle)
+        dy = y-ey + distance*math.sin(h+angle)
+        beams.append((math.atan2(dy, dx)-eh, math.hypot(dx, dy)))
+    return beams
 
 
 class SensorSuite:
@@ -41,7 +79,12 @@ class SensorSuite:
         self.pending_encoders = deque()
         self.last_imu_acquisition = now
         self.encoder = self.imu_sample = self.scan = None
-        self.history = deque(maxlen=math.ceil(self.lidar.latency * world.c["rate"]) + 3)
+        method = lidar.get("motion_compensation", "off")  # Old recorded profiles used raw beams.
+        if method not in ("odometry", "off"):
+            raise ValueError("Unknown lidar motion compensation")
+        self.deskew = self.lidar.dense and method == "odometry"
+        span = self.lidar.beam_dt * (len(self.lidar.angles)-1) if self.deskew else 0.
+        self.history = deque(maxlen=math.ceil((self.lidar.latency+span)*world.c["rate"]) + 3)
         self.delivery_tick = None
 
     def update(self, world, index, dt, initial=False):
@@ -75,16 +118,11 @@ class SensorSuite:
         self.scan = ScanSample(frame.time, frame.available_time, frame.beams, frame.times)
         self.delivery_tick = tick
         # The locator needs the prediction at acquisition, even for delayed frames.
-        while len(self.history) >= 2 and self.history[1][0] <= frame.time:
-            self.history.popleft()
-        t0, prior = self.history[0]
-        if len(self.history) > 1 and t0 < frame.time:
-            t1, following = self.history[1]
-            f = (frame.time - t0) / (t1 - t0)
-            x,y,h = prior
-            prior = (x + f*(following[0]-x), y + f*(following[1]-y),
-                     h + f*math.remainder(following[2]-h, math.tau))
-        world.wall_fixes[index] = self.tracker.update(frame.beams, frame.time, prior)
+        history = list(self.history)
+        stamps = [time for time, _ in history]
+        prior = pose_at(history, stamps, frame.time)
+        beams = deskew(frame, history, stamps, prior, self.mount) if self.deskew else frame.beams
+        world.wall_fixes[index] = self.tracker.update(beams, frame.time, prior)
         world.scans[index] = frame.beams
         world.scan_poses[index] = frame.pose
         world.scan_tick = tick

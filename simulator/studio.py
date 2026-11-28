@@ -11,6 +11,7 @@ from tkinter import filedialog, messagebox, ttk
 
 from sil_core import SENSOR_REFERENCE, Plant, settings
 from dynamics import vehicle_config
+from imu_sensor import GYRO_SENSITIVITY
 
 
 ROOT = Path(__file__).resolve().parent
@@ -57,6 +58,8 @@ LABELS.update({
     "dps_per_count":"陀螺量化步长 (°/s)/计数", "g_per_count":"加速度量化步长 g/计数",
     "gyro_scale":"三轴陀螺比例系数", "accel_scale":"三轴加速度比例系数"})
 CHOICES = {"mode":("Ideal","Nominal","Stress"),"lidar_model":("fast","dense"),"zero_mode":("brake","coast"),"bumper":("flat","u","custom"),"spec_mode":("constants","rated")}
+CHOICES.update(gyro_range_dps=tuple(GYRO_SENSITIVITY), motion_compensation=("odometry", "off"))
+LABELS["motion_compensation"] = "密扫逐束运动补偿"
 SURFACES = (("普通",0.72,0.105,0.012),("低附着",0.08,0.05,0.008),("粗糙",0.9,0.35,0.025))
 SOURCES = ("假设","理论","厂商标称","实测")
 VEHICLE = ("mass","length","breadth","car_height","cg_x","cg_y","inertia_si","track","wheel","counts",
@@ -70,6 +73,10 @@ def encode(value):
 
 def validate_profile(o):
     c = o["config"]
+    if "sensors" in o:
+        imu = o["sensors"]["imu"]
+        if imu["gyro_range_dps"] > 32768 * imu["dps_per_count"]:
+            raise ValueError("陀螺量程超出 16 位计数可表示范围，请核对量化步长")
     if len(o["teams"]) != 2: raise ValueError("方案需要两辆车")
     if type(o["fps"]) is not int or o["fps"] < 1: raise ValueError("帧率须为正整数")
     if min(c[k] for k in ("piece_mass","range_mm","speed","gravity_mm_s2")) <= 0 or c["rays"] < 2:
@@ -140,10 +147,13 @@ class Workbench:
         if source:
             ttk.Combobox(page,textvariable=src,values=SOURCES,state="readonly",width=9).grid(row=row,column=2)
         self.fields.append((path,value,var,src if source else None))
+        return var
 
     def populate(self,options):
         for tab in self.book.tabs(): self.root.nametowidget(tab).destroy()
         self.base = copy.deepcopy(options)
+        if "sensors" in self.base:
+            self.base["sensors"]["lidar"].setdefault("motion_compensation", "off")
         self.fields = []
         self.surface_index = 0
         run = options.get("run",{"seed":42,"seconds":120,"speed_factor":1.0})
@@ -159,13 +169,18 @@ class Workbench:
                 continue
             self.field(page,("config",key),key,options["config"][key])
         if "sensors" in options:
-            sensors = options["sensors"]
+            sensors = self.base["sensors"]
             page = self.page("传感器")
             self.field(page,("sensors","mode"),"mode",sensors["mode"],False)
             for group, title in (("lidar","PAVO 雷达"),("imu","LSM6DS3TR-C"),("encoder","TIM3 / TIM8")):
                 ttk.Label(page,text=title).grid(row=page.grid_size()[1],column=0,sticky="w",pady=8)
+                variables = {}
                 for key,value in sensors[group].items():
-                    self.field(page,("sensors",group,key),key,value,key != "lidar_model")
+                    variables[key] = self.field(page,("sensors",group,key),key,value,
+                                                key not in ("lidar_model", "motion_compensation"))
+                if group == "imu":
+                    scale, step = variables["gyro_range_dps"], variables["dps_per_count"]
+                    scale.trace_add("write", lambda *_: step.set(GYRO_SENSITIVITY[float(scale.get())]))
         for i,team in enumerate(options["teams"]):
             name = "甲乙"[i]
             v,motors = vehicle_config(options["config"],team,options["dynamics"],i)

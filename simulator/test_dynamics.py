@@ -198,6 +198,9 @@ class WorkbenchTests(unittest.TestCase):
             self.assertIn("传感器", [ui.book.tab(tab, "text") for tab in ui.book.tabs()])
             self.assertEqual(len(ui.book.tabs()), 8)
             self.assertEqual(ui.collect()["sensors"]["mode"], "Ideal")
+            fields = {path: var for path, _, var, _ in ui.fields}
+            fields["sensors","imu","gyro_range_dps"].set("1000")
+            self.assertEqual(ui.collect()["sensors"]["imu"]["dps_per_count"], .035)
             ui.populate(settings(DYNAMIC_REFERENCE))
             self.assertEqual(len(ui.book.tabs()), 7)
             ui.surface()
