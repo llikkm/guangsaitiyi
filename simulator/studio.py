@@ -9,7 +9,7 @@ import sys
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
-from sil_core import DYNAMIC_REFERENCE, Plant, settings
+from sil_core import SENSOR_REFERENCE, Plant, settings
 from dynamics import vehicle_config
 
 
@@ -31,7 +31,32 @@ LABELS = {
     "contact_friction":"实体表面接触摩擦","elasticity":"实体弹性系数","rate":"物理频率 Hz",
     "motor_hz":"驱动指令锁存 Hz","fps":"显示帧率上限","seed":"布棋种子","seconds":"实验时长 s",
     "speed_factor":"仿真倍率","scene":"实验场景 JSON","controller":"控制器文件","options":"算法参数 JSON"}
-CHOICES = {"zero_mode":("brake","coast"),"bumper":("flat","u","custom"),"spec_mode":("constants","rated")}
+LABELS.update({"mode":"传感器误差模式","lidar_model":"雷达扫描方式","imu_hz":"IMU 采样 Hz",
+               "encoder_hz":"编码器采样 Hz","lidar_dense_step_deg":"密集模式角间隔 °",
+               "lidar_dense_hz":"密集模式扫描 Hz","lidar_fast_rays":"快速模式光束数",
+               "lidar_mount_x_mm":"雷达前向偏移 mm","lidar_mount_y_mm":"雷达左向偏移 mm",
+               "lidar_mount_yaw_deg":"雷达安装偏航 °","latency_s":"传输延迟 s"})
+LABELS.update({
+    "lidar_fast_fov_deg":"快速扫描视场 °", "lidar_fast_hz":"快速扫描频率 Hz",
+    "lidar_fast_min_mm":"快速模式最近量程 mm", "lidar_fast_max_mm":"快速模式最远量程 mm",
+    "lidar_dense_fov_deg":"密集扫描视场 °", "lidar_min_mm":"密集模式最近量程 mm",
+    "lidar_max_mm":"密集模式最远量程 mm", "lidar_height_mm":"雷达离地高度 mm",
+    "lidar_noise_mm":"测距标准差 mm", "lidar_bias_mm":"测距固定偏差 mm",
+    "lidar_quantum_mm":"距离量化步长 mm", "lidar_angle_error_deg":"角度标准差 °",
+    "lidar_dropout":"单束丢点概率", "lidar_frame_dropout":"整帧丢失概率",
+    "lidar_outlier":"异常距离概率", "lidar_latency_s":"雷达传输延迟 s",
+    "lidar_blind_sectors_deg":"盲区列表 [[起角, 止角], …] °",
+    "lidar_clutter":"遮挡圆柱 [[x, y, 半径, 高度], …] mm",
+    "lidar_stress_blind_deg":"Stress 额外盲区 °", "lidar_stress_frame_loss":"Stress 最低整帧丢失概率",
+    "lidar_stress_factor":"雷达干扰倍率", "stress_factor":"IMU 干扰倍率",
+    "stress_latency_s":"Stress 编码器延迟 s", "mount_rpy_deg":"安装滚转、俯仰、偏航 °",
+    "gyro_bias_dps":"三轴陀螺零偏 °/s", "accel_bias_g":"三轴加速度零偏 g",
+    "gyro_noise_dps":"三轴陀螺标准差 °/s", "accel_noise_g":"三轴加速度标准差 g",
+    "gyro_walk_dps_sqrt_s":"陀螺零偏随机游走 (°/s)/√s", "accel_walk_g_sqrt_s":"加速度零偏随机游走 g/√s",
+    "gyro_range_dps":"陀螺量程 ±°/s", "accel_range_g":"加速度量程 ±g",
+    "dps_per_count":"陀螺量化步长 (°/s)/计数", "g_per_count":"加速度量化步长 g/计数",
+    "gyro_scale":"三轴陀螺比例系数", "accel_scale":"三轴加速度比例系数"})
+CHOICES = {"mode":("Ideal","Nominal","Stress"),"lidar_model":("fast","dense"),"zero_mode":("brake","coast"),"bumper":("flat","u","custom"),"spec_mode":("constants","rated")}
 SURFACES = (("普通",0.72,0.105,0.012),("低附着",0.08,0.05,0.008),("粗糙",0.9,0.35,0.025))
 SOURCES = ("假设","理论","厂商标称","实测")
 VEHICLE = ("mass","length","breadth","car_height","cg_x","cg_y","inertia_si","track","wheel","counts",
@@ -54,13 +79,13 @@ def validate_profile(o):
     run = o.get("run",{"seed":42,"seconds":120,"speed_factor":1.})
     if min(run["seconds"],run["speed_factor"]) <= 0: raise ValueError("时长和倍率须大于零")
     vehicles = [vehicle_config(c,team,o["dynamics"],i) for i,team in enumerate(o["teams"])]
-    Plant(c,run["seed"],o["scene"],vehicles)
+    Plant(c,run["seed"],o["scene"],vehicles,o.get("sensors"))
 
 
 class Workbench:
     def __init__(self,root):
         self.root = root
-        root.title("光电象棋 V2.1 · 车辆动力学实验台")
+        root.title("光电象棋 V2.2 · 传感器与动力学实验台")
         root.geometry("940x710")
         root.minsize(800,540)
         self.note = tk.StringVar(value="修改参数后开始实验；每次运行独立保存配置和记录。")
@@ -74,7 +99,7 @@ class Workbench:
                                   ("保存方案","F7",self.save),("载入方案","F8",self.load),("回放日志","F9",self.replay)):
             ttk.Button(bar,text=f"{name} [{key}]",command=callback).pack(side="left",padx=3)
             root.bind(f"<{key}>",lambda e,fn=callback:fn())
-        self.populate(settings(DYNAMIC_REFERENCE))
+        self.populate(settings(SENSOR_REFERENCE))
 
     def surface(self):
         self.surface_index = (self.surface_index+1)%len(SURFACES)
@@ -130,7 +155,17 @@ class Workbench:
         for key in ("piece_mass","piece_mu","contact_friction","elasticity","rate","motor_hz","pid_hz",
                     "encoder_hz","imu_hz","control_hz","navigation_hz","scan_rate","speed_kp","speed_ki","speed_kd",
                     "fov","range_mm","rays","laser_height","gyro_bias","speed","arrival","approach_gain","turn_gain"):
+            if "sensors" in options and key in ("fov","range_mm","rays","laser_height","gyro_bias","scan_rate"):
+                continue
             self.field(page,("config",key),key,options["config"][key])
+        if "sensors" in options:
+            sensors = options["sensors"]
+            page = self.page("传感器")
+            self.field(page,("sensors","mode"),"mode",sensors["mode"],False)
+            for group, title in (("lidar","PAVO 雷达"),("imu","LSM6DS3TR-C"),("encoder","TIM3 / TIM8")):
+                ttk.Label(page,text=title).grid(row=page.grid_size()[1],column=0,sticky="w",pady=8)
+                for key,value in sensors[group].items():
+                    self.field(page,("sensors",group,key),key,value,key != "lidar_model")
         for i,team in enumerate(options["teams"]):
             name = "甲乙"[i]
             v,motors = vehicle_config(options["config"],team,options["dynamics"],i)
@@ -147,8 +182,9 @@ class Workbench:
         for path,base,var,src in self.fields:
             try:
                 text = var.get()
-                if isinstance(base,(list,dict)): value = json.loads(text)
+                if isinstance(base,(list,tuple,dict)): value = json.loads(text)
                 elif isinstance(base,str): value = text
+                elif path[0] == "sensors" and type(base) is int: value = int(text)
                 elif path[-1] in ("seed","rate","fps","counts","rays"): value = int(text)
                 else: value = float(text)
                 if isinstance(value,float) and not math.isfinite(value): raise ValueError("finite value required")

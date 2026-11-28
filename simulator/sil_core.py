@@ -19,6 +19,7 @@ from dynamics import DynamicCar, vehicle_config
 
 REFERENCE = Path(__file__).with_name("v2.toml")
 DYNAMIC_REFERENCE = REFERENCE.with_name("v21.toml")
+SENSOR_REFERENCE = REFERENCE.with_name("v22.toml")
 TASKS = ("motor_hz", "pid_hz", "encoder_hz", "imu_hz", "control_hz",
          "navigation_hz", "scan_rate")
 
@@ -63,6 +64,19 @@ def settings(path=REFERENCE):
                         for key in params:
                             if key not in team.get(part,{}): sources[f"teams.{i}.{part}.{key}"] = label
         options["sources"] = sources | data.get("sources",{})
+    if "sensors" in data:
+        from sensor_suite import sensor_options
+        options["sensors"] = sensor_options(data["sensors"])
+        sources = options.setdefault("sources", {})
+        for key in ("gyro_bias_dps", "gyro_noise_dps", "accel_bias_g", "accel_scale", "accel_noise_g"):
+            if key not in data["sensors"].get("imu", {}):
+                sources.setdefault("sensors.imu." + key, "实测")
+        for key in ("gyro_range_dps", "accel_range_g", "dps_per_count", "g_per_count"):
+            if key not in data["sensors"].get("imu", {}):
+                sources.setdefault("sensors.imu." + key, "厂商标称")
+        for key in ("lidar_dense_step_deg", "lidar_noise_mm", "lidar_quantum_mm"):
+            if key not in data["sensors"].get("lidar", {}):
+                sources.setdefault("sensors.lidar." + key, "实测")
     return options
 
 
@@ -103,7 +117,8 @@ class SpeedLoop:
 
 
 class Plant(World):
-    def __init__(self, c, seed, scene, vehicles=None):
+    def __init__(self, c, seed, scene, vehicles=None, sensors=None):
+        self.sensor_config = sensors
         self.vehicles = vehicles
         self.locator = RectangleLocator(c["width"], c["height"])
         self.scene = scene
@@ -134,6 +149,7 @@ class Plant(World):
             yield from super().initial_pieces()
 
     def setup(self):
+        self.building_scene = True
         super().setup()
         self.obstacles = []
         for x,y,width,depth,height in self.scene.get("obstacles", []):
@@ -147,7 +163,11 @@ class Plant(World):
             self.space.add(body,shape)
             self.heights[shape] = height
             self.obstacles.append(shape)
-        self.refresh_scans()
+        self.building_scene = False
+        if self.sensor_config is None:
+            self.refresh_scans()
+        else:
+            self.start_sensors()
         if self.scene:
             for shape in self.heights:
                 if shape.body == self.space.static_body:
@@ -179,6 +199,19 @@ class Plant(World):
         # The base reset scans the start boxes before custom scenario poses apply.
         self.wall_trackers = [WallTracker(self.locator) for _ in range(2)]
         self.refresh_scans()
+        if self.sensor_config is not None and not self.building_scene:
+            self.start_sensors()
+
+    def start_sensors(self):
+        from sensor_suite import SensorSuite
+        self.suites = [SensorSuite(self, i, self.sensor_config) for i in range(2)]
+        self.gyros = [0., 0.]
+        self.scans = [(), ()]
+        self.scan_tick = -1
+        self.scan_poses = [(*car.body.position, car.body.angle) for car in self.cars]
+        self.wall_fixes = [None, None]
+        for i, suite in enumerate(self.suites):
+            suite.update(self, i, 0., initial=True)
 
     def advance_drive(self, commands, dt):
         due = self.schedule.due("motor_hz",self.elapsed)
@@ -195,6 +228,10 @@ class Plant(World):
             car.apply_traction(dt)
 
     def update_sensors(self, dt):
+        if self.sensor_config is not None:
+            for i, suite in enumerate(self.suites):
+                suite.update(self, i, dt)
+            return
         c, tick = self.c, self.elapsed
         if self.schedule.due("encoder_hz", tick):
             period = (tick-self.encoder_tick)*dt
@@ -213,12 +250,21 @@ class Plant(World):
             self.refresh_scans()
 
     def refresh_scans(self):
+        if self.sensor_config is not None:
+            return
         super().refresh_scans()
         self.wall_fixes = [tracker.update(beams,self.scan_tick/self.c["rate"],odom.pose)
                            for tracker,beams,odom in zip(self.wall_trackers,self.scans,self.estimates)]
 
     def observation(self,i):
         rate = self.c["rate"]
+        if self.sensor_config is not None:
+            suite = self.suites[i]
+            scan, imu, encoder = suite.scan, suite.imu_sample, suite.encoder
+            return Observation(self.elapsed/rate, tuple(self.estimates[i].pose), self.scans[i],
+                               scan.time if scan else 0., self.gyros[i], imu.time if imu else 0.,
+                               self.counts[i], encoder.time if encoder else 0., self.wall_fixes[i],
+                               scan, imu, encoder)
         return Observation(self.elapsed/rate, tuple(self.estimates[i].pose),
                            tuple(self.scans[i]), self.scan_tick/rate, self.gyros[i],
                            self.imu_tick/rate, self.counts[i], self.encoder_tick/rate, self.wall_fixes[i])
@@ -249,7 +295,8 @@ class Simulation:
                 self.options["config"].setdefault("reviewed_dynamics",True)
             vehicles = [vehicle_config(self.options["config"],team,options["dynamics"],i)
                         for i,team in enumerate(options["teams"])]
-        self.world = Plant(self.options["config"],seed,self.options["scene"],vehicles)
+        self.world = Plant(self.options["config"],seed,self.options["scene"],vehicles,
+                           self.options.get("sensors"))
         self.manual = {}
         self.controllers = []
         self.hashes = []

@@ -19,6 +19,8 @@ def watch(sim,advance,speed):
     try:
         screen = pg.display.set_mode((1180,680))
         version = "2.1" if w.vehicles else "2.0"
+        if w.sensor_config is not None:
+            version = "2.2 " + w.sensor_config["mode"]
         pg.display.set_caption(f"Optical Chess | V{version} dynamics")
         pg.key.stop_text_input()
         font = pg.font.Font(None,24)

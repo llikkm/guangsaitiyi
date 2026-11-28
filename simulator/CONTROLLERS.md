@@ -1,4 +1,4 @@
-# V2.0 / V2.1 控制器接口
+# V2 控制器接口
 
 V2.1 继续使用本接口。加载 V2.1 方案时，轮速环输出的 PWM 经电机电流、轮轴扭矩和轮胎接触传至车体；零 PWM 按该车的 brake/coast 参数处理。评估日志增加轮系状态，控制器仍从模拟传感器读取观测。[V2.1 动力学说明](V2.1手册.md)
 
@@ -11,6 +11,8 @@ class Controller:
 
     def update(self, robot, dt):
         ranges = robot.read_lidar()
+        if not ranges:
+            return robot.stop()
         _, front_mm = ranges[len(ranges) // 2]
         if front_mm is not None and front_mm < 350:
             return robot.stop()
@@ -26,7 +28,7 @@ class Controller:
 | 接口 | 值和单位 |
 | --- | --- |
 | `robot.time`、`dt` | 仿真秒。dt 为本任务距上次运行的时间，首次为配置周期 |
-| `read_lidar()`、`lidar_time` | 最近一次扫描及其时间。每束为 (车体系角度 rad, 距离 mm)，无回波时距离为 None |
+| `read_lidar()`、`lidar_time` | 最近一次扫描及其时间。每束为 (雷达本地角度 rad, 距离 mm)，无回波时距离为 None |
 | `read_imu()`、`imu_time` | 模拟陀螺的偏航角速度 rad/s 及采样时间 |
 | `read_encoders()`、`encoder_time` | 左、右轮累计计数及采样时间 |
 | `estimated_pose` | 由已知起点、模拟编码器和陀螺推算的 (x mm, y mm, 航向 rad) |
@@ -87,3 +89,7 @@ obstacles = [[900, 400, 100, 160, 180]]
 `--record` 输出格式 3 的 JSONL。首行保存软件及 Pymunk 版本、有效配置、实验种子、场景和两份控制器的 SHA-256。每个物理步保存步号、仿真秒、两队的原始命令模式和数值，以及实际 PWM。遥测包含车辆真值、估计和棋位，末行记录结束步号。
 
 `--replay` 读取记录的命令，在同一版本核心中重新计算轮速环并逐步核对 PWM。回放可脱离原控制器文件运行。离线位置 RMSE 可用 `experiment.py` 计算。硬件适配时须实现同样的单位和时间戳约定；本版交付仿真端接口。
+
+## V2.2 原始传感器
+
+`robot.lidar_sample` 提供逐束采样时刻，`robot.imu_sample` 提供传感器坐标系六轴 SI 读数，`robot.encoder_sample` 提供 TIM3/TIM8 寄存器值。第一次交付之前三个字段各自可为 None。控制器只接收已经可用的样本。[接口、单位和实车适配](V2.2手册.md)

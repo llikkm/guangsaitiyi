@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pymunk
 from experiment import sample
-from sil_core import DYNAMIC_REFERENCE, Simulation, settings
+from sil_core import SENSOR_REFERENCE, Simulation, settings
 
 
 def write_line(stream, value):
@@ -18,6 +18,8 @@ def header(sim):
     version = "2.0"
     if sim.world.vehicles:
         version = "2.1.1" if sim.world.c.get("reviewed_dynamics") else "2.1"
+    if sim.world.sensor_config is not None:
+        version = "2.2"
     return dict(format=3,software=version,pymunk=pymunk.version,seed=sim.world.seed,
                 options=sim.options,controller_sha256=sim.hashes)
 
@@ -74,7 +76,7 @@ def execute(sim, count, stream=None, recorded=None, gui=False, speed=1, on_step=
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config",type=Path,default=DYNAMIC_REFERENCE)
+    parser.add_argument("--config",type=Path,default=SENSOR_REFERENCE)
     parser.add_argument("--profile",type=Path,help="JSON profile exported by the dynamics workbench")
     parser.add_argument("--manual",action="store_true",help="Start GUI with team A in manual mode")
     parser.add_argument("--seed",type=int,default=42)
@@ -93,7 +95,7 @@ def main():
                 parser.error("Choose either --record or --replay")
             source = stack.enter_context(args.replay.open(encoding="utf8"))
             meta = json.loads(source.readline())
-            if meta.get("format") != 3 or meta.get("software") not in ("2.0","2.1","2.1.1") or meta.get("pymunk") != pymunk.version:
+            if meta.get("format") != 3 or meta.get("software") not in ("2.0","2.1","2.1.1","2.2") or meta.get("pymunk") != pymunk.version:
                 parser.error("Expected a compatible V2 experiment")
             sim = Simulation(meta["options"],meta["seed"],replay=True)
             recorded = inputs(source)

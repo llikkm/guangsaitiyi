@@ -4,6 +4,8 @@
 
 [二维仿真运行说明](simulator/README.md) · [仿真测试记录](simulator/TESTING.md) · [STM32 小车工程说明](AMR_NEW_CodingDay4/README-CodingDay4.md)
 
+V2.2 将 LSM6DS3TR-C 六轴实测数据和四段 PAVO 抓包用于传感器建模，提供带时间戳的雷达、IMU 和编码器接口。[V2.2 操作手册](simulator/V2.2手册.md) · [IMU 标定与独立验证](imu_analysis/README.md)
+
 首次使用可运行 `py -3.12 simulator/studio.py`，在同一个工作台调车、手动驾驶或比较两套算法。[V2.1 操作与动力学说明书](simulator/V2.1手册.md) · [控制器接口](simulator/CONTROLLERS.md)
 
 ## 仿真开发基准

@@ -1,7 +1,12 @@
 """Controller-facing values. This module has no simulator or hardware imports."""
 from dataclasses import dataclass
 import math
-from wall_localization import WallFix
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from imu_sensor import ImuSample
+    from encoder_sensor import EncoderSample
+from wall_localization import WallFix, pavo_scan
 
 
 @dataclass(frozen=True, slots=True)
@@ -25,6 +30,25 @@ class WheelSpeed:
 
 
 @dataclass(frozen=True, slots=True)
+class ScanSample:
+    time: float
+    available_time: float
+    beams: tuple
+    times: tuple
+
+    @classmethod
+    def from_pavo(cls, raw_beams, beam_times, available_time):
+        """Assemble a driver frame from (packet degrees, metres) and same-clock seconds."""
+        beams = pavo_scan(raw_beams)
+        times = tuple(beam_times)
+        if (not times or len(times) != len(beams) or not all(map(math.isfinite, times))
+                or any(b < a for a, b in zip(times, times[1:]))
+                or not math.isfinite(available_time) or available_time < times[-1]):
+            raise ValueError("Invalid PAVO acquisition/delivery times")
+        return cls(times[-1], available_time, beams, times)
+
+
+@dataclass(frozen=True, slots=True)
 class Observation:
     time: float
     estimated_pose: tuple
@@ -35,6 +59,10 @@ class Observation:
     encoder_counts: tuple
     encoder_time: float
     wall_fix: WallFix | None = None  # WallFix for the most recent scan
+
+    lidar_sample: ScanSample | None = None
+    imu_sample: "ImuSample | None" = None
+    encoder_sample: "EncoderSample | None" = None
 
     def read_lidar(self):
         return self.lidar

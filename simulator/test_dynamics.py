@@ -195,7 +195,11 @@ class WorkbenchTests(unittest.TestCase):
         try:
             ui = Workbench(root)
             root.update()
-            self.assertEqual(len(ui.book.tabs()),7)
+            self.assertIn("传感器", [ui.book.tab(tab, "text") for tab in ui.book.tabs()])
+            self.assertEqual(len(ui.book.tabs()), 8)
+            self.assertEqual(ui.collect()["sensors"]["mode"], "Ideal")
+            ui.populate(settings(DYNAMIC_REFERENCE))
+            self.assertEqual(len(ui.book.tabs()), 7)
             ui.surface()
             self.assertEqual(ui.collect()["config"]["piece_mu"],0.05)
             for path,_,var,_ in ui.fields:

@@ -1,4 +1,5 @@
 #include "main.h"
+#include "chassis_imu.h"
 #include "cmsis_os2.h"
 #include "FreeRTOS.h"
 #include "task.h"
@@ -48,6 +49,8 @@ static volatile uint8_t imu_ready, stop_requested = 1;
 static uint8_t lidar_dma[2 * HALF], bt_byte;
 static float gyro_rate;
 static uint32_t gyro_at;
+static ChassisImuSample latest_imu;
+static uint8_t has_imu_sample;
 static uint8_t tracking_state;
 
 static uint32_t timing_begin(unsigned id);
@@ -344,7 +347,7 @@ static int block_current(const DmaBlock *block)
 //member3 code end
 
 //member4 code begin
-/* TIM7 ISR 每 10 ms 发一个令牌，I2C 读数留给任务。 */
+/* TIM7 ISR 发令牌，I2C 读数留给任务。 */
 void CodingDay_TimerISR(void)
 {
     if (imu_tick && osSemaphoreRelease(imu_tick) != osOK) ++imu_overrun;
@@ -395,7 +398,6 @@ static int imu_register(uint16_t address, uint8_t reg, uint8_t *data, uint16_t l
     HAL_StatusTypeDef status = write ?
         HAL_I2C_Mem_Write(&hi2c2, address, reg, I2C_MEMADD_SIZE_8BIT, data, len, 4) :
         HAL_I2C_Mem_Read(&hi2c2, address, reg, I2C_MEMADD_SIZE_8BIT, data, len, 4);
-    if (status == HAL_OK && reg == 0x75 && !write) imu_who_am_i = data[0];
     record_i2c(&imu_diag, status, HAL_I2C_GetError(&hi2c2),
                address, reg | (write ? 0x100U : 0U));
     recover_i2c(status, imu_diag.error);
@@ -403,45 +405,149 @@ static int imu_register(uint16_t address, uint8_t reg, uint8_t *data, uint16_t l
     return status == HAL_OK;
 }
 
+int ChassisImu_GetLatest(ChassisImuSample *sample)
+{
+    if (!sample) return 0;
+    taskENTER_CRITICAL();
+    int valid = has_imu_sample;
+    if (valid) *sample = latest_imu;
+    taskEXIT_CRITICAL();
+    return valid;
+}
+
+static int imu_setting(uint16_t address, uint8_t reg, uint8_t value)
+{
+    uint8_t actual;
+    return imu_register(address, reg, &value, 1, 1) &&
+           imu_register(address, reg, &actual, 1, 0) && actual == value;
+}
+
+#if CHASSIS_IMU == CHASSIS_LSM6DS3TR_C
+#define IMU_ADDR_LOW 0x6A
+#define IMU_ID_REG 0x0F
+#define IMU_EXPECTED_ID 0x6A
+
+static int imu_configure(uint16_t address)
+{
+    uint8_t reset = 1;
+    if (!imu_register(address, 0x12, &reset, 1, 1)) return 0;
+    for (unsigned tries = 0; tries < 10; ++tries) {
+        osDelay(2);
+        if (!imu_register(address, 0x12, &reset, 1, 0)) return 0;
+        if (!(reset & 1)) {
+            return imu_setting(address, 0x12, 0x44) && /* BDU, auto-increment */
+                   imu_setting(address, 0x10, 0x40) && /* XL: 104 Hz, +/-2 g */
+                   imu_setting(address, 0x11, 0x40);   /* G: 104 Hz, +/-250 dps */
+        }
+    }
+    return 0;
+}
+
+static int16_t le16(const uint8_t *p)
+{
+    return (int16_t)((uint16_t)p[1] << 8 | p[0]);
+}
+
+/* 1 fresh, 0 waiting for data, -1 I2C fault. */
+static int imu_read(uint16_t address, ChassisImuSample *s)
+{
+    uint8_t status, bytes[14];
+    if (!imu_register(address, 0x1E, &status, 1, 0)) return -1;
+    if ((status & 3) != 3) return 0;
+    if (!imu_register(address, 0x20, bytes, sizeof bytes, 0)) return -1;
+    s->temp_raw = le16(bytes);
+    s->gx_raw = le16(bytes + 2);
+    s->gy_raw = le16(bytes + 4);
+    s->gz_raw = le16(bytes + 6);
+    s->ax_raw = le16(bytes + 8);
+    s->ay_raw = le16(bytes + 10);
+    s->az_raw = le16(bytes + 12);
+    return 1;
+}
+#else
+#define IMU_ADDR_LOW 0x68
+#define IMU_ID_REG 0x75
+#define IMU_EXPECTED_ID 0x70
+
+static int imu_configure(uint16_t address)
+{
+    if (!imu_setting(address, 0x6B, 1)) return 0;
+    osDelay(50);
+    return imu_setting(address, 0x1B, 0) && imu_setting(address, 0x1C, 0);
+}
+
+static int16_t be16(const uint8_t *p)
+{
+    return (int16_t)((uint16_t)p[0] << 8 | p[1]);
+}
+
+static int imu_read(uint16_t address, ChassisImuSample *s)
+{
+    uint8_t bytes[14];
+    if (!imu_register(address, 0x3B, bytes, sizeof bytes, 0)) return -1;
+    s->ax_raw = be16(bytes);
+    s->ay_raw = be16(bytes + 2);
+    s->az_raw = be16(bytes + 4);
+    s->temp_raw = be16(bytes + 6);
+    s->gx_raw = be16(bytes + 8);
+    s->gy_raw = be16(bytes + 10);
+    s->gz_raw = be16(bytes + 12);
+    return 1;
+}
+#endif
+
 static void imu_task(void *arg)
 {
     (void)arg;
     uint16_t address = 0;
-    uint8_t who, value = 1, raw[2];
+    uint8_t who;
     while (!address) {
-        for (uint16_t a = 0x68; a <= 0x69; ++a)
-            if (imu_register(a << 1, 0x75, &who, 1, 0) && who == 0x70) address = a << 1;
+        for (uint16_t a = IMU_ADDR_LOW; a <= IMU_ADDR_LOW + 1; ++a) {
+            if (!imu_register(a << 1, IMU_ID_REG, &who, 1, 0)) continue;
+            imu_who_am_i = who;
+            if (who == IMU_EXPECTED_ID && imu_configure(a << 1)) {
+                address = a << 1;
+                break;
+            }
+        }
         if (!address) { ++imu_errors; osDelay(250); }
     }
-    while (!imu_register(address, 0x6B, &value, 1, 1)) {
-        ++imu_errors;
-        osDelay(100);
-    }
+    uint32_t bias_start_ms = osKernelGetTickCount();
+#if CHASSIS_IMU == CHASSIS_LSM6DS3TR_C
+    /* static10 shows cold-start transients. Keep publishing raw frames during settling. */
+    bias_start_ms += 2000U;
+#endif
     osDelay(50);
-    value = 0;
-    while (!imu_register(address, 0x1B, &value, 1, 1)) {
-        ++imu_errors;
-        osDelay(100);
-    }
     float sum = 0, bias = 0;
     unsigned samples = 0;
+    uint32_t seq = 0;
+#if CHASSIS_IMU == CHASSIS_LSM6DS3TR_C
+    /* Poll at 200 Hz so the task can consume the sensor's 104 Hz output. */
+    __HAL_TIM_SET_AUTORELOAD(&htim7, 49);
+#endif
     __HAL_TIM_CLEAR_FLAG(&htim7, TIM_FLAG_UPDATE);
     if (HAL_TIM_Base_Start_IT(&htim7) != HAL_OK) Error_Handler();
     for (;;) {
         osSemaphoreAcquire(imu_tick, osWaitForever);
         uint32_t start = timing_begin(IMU);
-        if (imu_register(address, 0x47, raw, 2, 0)) {
-            float z = (int16_t)((raw[0] << 8) | raw[1]);
-            if (samples < 100) {
+        ChassisImuSample sample;
+        int fresh = imu_read(address, &sample);
+        if (fresh > 0) {
+            sample.seq = seq++;
+            sample.read_tick_ms = osKernelGetTickCount();
+            float z = sample.gz_raw;
+            if (samples < 100 && (int32_t)(sample.read_tick_ms - bias_start_ms) >= 0) {
                 sum += z;
                 if (++samples == 100) bias = sum / 100;
             }
             taskENTER_CRITICAL();
-            gyro_rate = GYRO_SIGN * (z - bias) * (PI / (180 * 131));
-            gyro_at = osKernelGetTickCount();
+            latest_imu = sample;
+            has_imu_sample = 1;
+            gyro_rate = GYRO_SIGN * (z - bias) * IMU_DPS_PER_COUNT * (PI / 180.0f);
+            gyro_at = sample.read_tick_ms;
             imu_ready = samples == 100;
             taskEXIT_CRITICAL();
-        } else {
+        } else if (fresh < 0) {
             ++imu_errors;
         }
         timing_end(IMU, start);

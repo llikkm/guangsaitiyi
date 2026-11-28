@@ -30,9 +30,13 @@ def field_view(screen,c,small):
             vertices = [px(*shape.body.local_to_world(v)) for v in shape.get_vertices()]
             pg.draw.polygon(screen, (172, 152, 104), vertices)
         car = w.cars[team]
+        x,y,yaw = w.scan_poses[team]
+        if getattr(w, "sensor_config", None) is not None:
+            mx,my,heading = w.suites[team].mount
+            x,y = x+mx*math.cos(yaw)-my*math.sin(yaw), y+mx*math.sin(yaw)+my*math.cos(yaw)
+            yaw += heading
         for angle,distance in w.scans[team]:
             if distance is not None:
-                x,y,yaw = w.scan_poses[team]
                 a = angle+yaw
                 pg.draw.circle(screen,(96,225,175),px(x+distance*math.cos(a),y+distance*math.sin(a)),2)
         for t,k,b in w.pieces:

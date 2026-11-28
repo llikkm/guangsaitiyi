@@ -1,0 +1,13 @@
+[assumed]
+reviewed_dynamics = true
+imu_hz = 104
+
+[dynamics]
+version = "2.1"
+
+[sensors]
+mode = "Ideal"
+
+# All model defaults are expanded into saved profiles and replay headers.
+[sensors.lidar]
+lidar_model = "fast"

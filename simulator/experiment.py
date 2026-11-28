@@ -15,7 +15,17 @@ def sample(w, commands):
                          command=commands[i], scan=w.scans[i],
                          scan_tick=w.scan_tick, scan_pose=w.scan_poses[i]))
         if hasattr(w, "wall_fixes"):
-            cars[-1]["wall_fix"] = asdict(w.wall_fixes[i])
+            fix = w.wall_fixes[i]
+            cars[-1]["wall_fix"] = asdict(fix) if fix else None
+        if getattr(w, "sensor_config", None) is not None:
+            obs = w.observation(i)
+            scan = obs.lidar_sample
+            cars[-1].update(scan_tick=w.suites[i].delivery_tick,
+                            imu_sample=asdict(obs.imu_sample) if obs.imu_sample else None,
+                            encoder_sample=asdict(obs.encoder_sample) if obs.encoder_sample else None,
+                            beam_times=scan.times if scan else (),
+                            scan_time=obs.lidar_time if scan else None,
+                            scan_available_time=scan.available_time if scan else None)
         if hasattr(car,"wheels"):
             cars[-1]["latched_pwm"] = car.duty
             cars[-1]["wheels"] = [vars(wheel).copy() for wheel in car.wheels]
